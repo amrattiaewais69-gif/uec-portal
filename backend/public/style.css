@@ -92,7 +92,7 @@ overflow:hidden;
 
 /* HEADER BAR */
 .header-bar{
-background:var(--navy);
+background:#4E4099;
 padding:15px 25px;
 display:flex;align-items:center;justify-content:space-between;
 }
