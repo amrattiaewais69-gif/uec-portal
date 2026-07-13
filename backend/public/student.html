@@ -294,6 +294,16 @@ doc.text('Student ID:',20,y+10);doc.text(d.id,60,y+10);
 doc.text('Faculty:',20,y+20);doc.text(d.faculty||'N/A',60,y+20);
 doc.text('Result Type:',20,y+30);doc.text(typeLabels[currentResultType],60,y+30);
 
+try{
+const pRes=await fetch('/photos/'+d.id+'.jpg');
+if(pRes.ok){
+const pBlob=await pRes.blob();
+const pReader=new FileReader();
+await new Promise(r=>{pReader.onloadend=r;pReader.readAsDataURL(pBlob);});
+doc.addImage(pReader.result,'JPEG',160,y-10,30,35);
+}
+}catch(e){}
+
 const body=[];
 for(const[c,g]of Object.entries(d.courses)){body.push([c,g]);}
 body.push(['GPA',d.gpa]);
