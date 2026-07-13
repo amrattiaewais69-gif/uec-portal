@@ -6,6 +6,19 @@
 <title>UEC Supervisor Portal</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lato:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<style>
+.badge-ch{background:var(--navy);color:var(--white);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;display:inline-block;}
+.status-label{font-weight:700;font-size:13px;}
+.status-submitted{color:#d97706;}
+.status-approved{color:#16a34a;}
+.status-rejected{color:#dc2626;}
+.status-returned{color:#2563eb;}
+.status-default{color:#64748b;}
+.note-input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:'Lato',sans-serif;resize:vertical;min-height:36px;box-sizing:border-box;}
+.note-input:focus{outline:none;border-color:var(--gold);}
+.action-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+.completed-label{color:#94a3b8;font-size:13px;font-weight:500;font-style:italic;}
+</style>
 </head>
 <body>
 <div id="loadingScreen" class="login-wrapper">
@@ -15,7 +28,7 @@
 <div class="login-box">
 <img src="logo.png" class="logo">
 <h2>UEC Supervisor Portal</h2>
-<p>Academic Supervision</p>
+<p>Academic Advising</p>
 <input id="username" placeholder="Supervisor ID">
 <input id="password" type="password" placeholder="Password">
 <button class="btn btn-gold" style="width:100%;margin-top:10px;" onclick="login()">Login</button>
@@ -25,18 +38,26 @@
 
 <div class="panel" id="supPanel" style="display:none">
 <div class="header-bar">
-<div class="brand">
-<img src="logo.png">
-<h2>Supervisor Dashboard</h2>
-</div>
+<div class="brand"><img src="logo.png"><h2>Academic Advisor Decision</h2></div>
 <p id="loggedUser" style="color:var(--gold);font-size:13px;margin:0;"></p>
 </div>
 
 <div style="padding:25px 30px;">
 
-<div style="margin-bottom:25px;">
-<h3 style="color:var(--navy);font-family:'Playfair Display',serif;margin-bottom:12px;font-size:17px;">Student Registration Requests</h3>
-<div style="overflow-x:auto;"><table id="reqTable"><tr><th>Student</th><th>Level</th><th>Credits</th><th>Fees</th><th>Courses</th><th>Failed</th><th>Status</th><th>Comments</th><th>Action</th></tr></table></div>
+<h3 style="color:var(--navy);font-family:'Playfair Display',serif;margin-bottom:6px;font-size:17px;">Assigned Student Application Pipeline</h3>
+<p style="color:#64748b;margin-bottom:25px;font-size:13px;">Review the curriculum combinations submitted by your assigned student cohort. Only student records assigned to your supervisor code are mapped to this view.</p>
+
+<div style="overflow-x:auto;">
+<table id="reqTable">
+<thead><tr>
+<th>Student Specifications</th>
+<th>Configured Course Array</th>
+<th>Workload Load</th>
+<th>Application Status</th>
+<th>Advisory Action Controls</th>
+</tr></thead>
+<tbody></tbody>
+</table>
 </div>
 
 <div class="footer-bar">
@@ -72,16 +93,106 @@ document.getElementById('loginBox').style.display='flex';
 }else{
 document.getElementById('loadingScreen').style.display='none';
 document.getElementById('supPanel').style.display='block';
-document.getElementById('loggedUser').textContent='Logged in as: '+(localStorage.getItem('portalDisplayName')||'supervisor');
+document.getElementById('loggedUser').textContent='Dr. '+(localStorage.getItem('portalDisplayName')||'supervisor');
 loadDashboard();
 }
 
-async function login(){const u=document.getElementById('username').value;const p=document.getElementById('password').value;const errEl=document.getElementById('loginError');errEl.style.display='none';if(!u||!p){errEl.textContent='Fill in all fields';errEl.style.display='block';return;}try{const res=await fetch(API+'/auth/account-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,loginType:'supervisor'})});const data=await res.json();if(res.ok&&data.role==='supervisor'){token=data.token;localStorage.setItem('portalToken',token);localStorage.setItem('portalRole','supervisor');localStorage.setItem('portalDisplayName',data.displayName);document.getElementById('loginBox').style.display='none';document.getElementById('supPanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+data.displayName;loadDashboard();}else{errEl.textContent=data.error||'Invalid credentials';errEl.style.display='block';}}catch(e){errEl.textContent='Connection error';errEl.style.display='block';}}
-async function loadDashboard(){const res=await fetch(API+'/supervisor/dashboard',{headers:{'Authorization':'Bearer '+token}});if(!res.ok)return;const data=await res.json();const t=document.getElementById('reqTable');t.innerHTML='<tr><th>Student</th><th>Level</th><th>Credits</th><th>Fees</th><th>Courses</th><th>Failed</th><th>Status</th><th>Comments</th><th>Action</th></tr>';if(data.requests.length===0){t.innerHTML+='<tr><td colspan="9" style="color:#999;">No requests</td></tr>';return;}data.requests.forEach(r=>{const tr=document.createElement('tr');tr.innerHTML='<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>';tr.cells[0].textContent=r.studentName+' ('+r.studentId+')';tr.cells[1].textContent=r.level||'-';tr.cells[2].textContent=r.totalCredits;tr.cells[3].textContent=r.totalFees;tr.cells[4].textContent=r.courses;tr.cells[5].textContent=r.failedCourses;tr.cells[6].textContent=r.status;tr.cells[7].textContent=r.comments||'-';if(r.status==='Submitted'){const ab=document.createElement('button');ab.textContent='Approve';ab.className='btn btn-gold btn-sm';ab.onclick=()=>processAction(r.requestId,'Approve');const rtb=document.createElement('button');rtb.textContent='Return';rtb.className='btn btn-navy btn-sm';rtb.onclick=()=>processAction(r.requestId,'Return');const rb=document.createElement('button');rb.textContent='Reject';rb.className='btn btn-danger btn-sm';rb.onclick=()=>processAction(r.requestId,'Reject');tr.cells[8].appendChild(ab);tr.cells[8].appendChild(rtb);tr.cells[8].appendChild(rb);}else if(r.status==='Approved by Supervisor'){const rtb=document.createElement('button');rtb.textContent='Return';rtb.className='btn btn-navy btn-sm';rtb.onclick=()=>processAction(r.requestId,'Return');tr.cells[8].appendChild(rtb);}t.appendChild(tr);});}
-async function processAction(requestId,action){const comments=prompt('Comments (optional):');const res=await fetch(API+'/supervisor/processAction',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({requestId,action,comments})});const data=await res.json();if(data.message){loadDashboard();}else{alert(data.error||'Failed');}}
+async function login(){
+const u=document.getElementById('username').value;const p=document.getElementById('password').value;
+const errEl=document.getElementById('loginError');errEl.style.display='none';
+if(!u||!p){errEl.textContent='Fill in all fields';errEl.style.display='block';return;}
+try{const res=await fetch(API+'/auth/account-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,loginType:'supervisor'})});
+const data=await res.json();
+if(res.ok&&data.role==='supervisor'){token=data.token;localStorage.setItem('portalToken',token);localStorage.setItem('portalRole','supervisor');localStorage.setItem('portalDisplayName',data.displayName);
+document.getElementById('loginBox').style.display='none';document.getElementById('supPanel').style.display='block';
+document.getElementById('loggedUser').textContent='Dr. '+data.displayName;loadDashboard();}
+else{errEl.textContent=data.error||'Invalid credentials';errEl.style.display='block';}}catch(e){errEl.textContent='Connection error';errEl.style.display='block';}
+}
+
+function getStatusClass(status){
+if(status==='Submitted')return'status-submitted';
+if(status==='Approved by Supervisor')return'status-approved';
+if(status==='Rejected')return'status-rejected';
+if(status==='Returned for Modification')return'status-returned';
+return'status-default';
+}
+
+async function loadDashboard(){
+try{
+const res=await fetch(API+'/supervisor/dashboard',{headers:{'Authorization':'Bearer '+token}});
+if(!res.ok)return;
+const data=await res.json();
+const tbody=document.querySelector('#reqTable tbody');
+tbody.innerHTML='';
+
+if(data.requests.length===0){
+tbody.innerHTML='<tr><td colspan="5" style="color:#999;text-align:center;padding:30px;">No requests assigned to your students.</td></tr>';
+return;
+}
+
+data.requests.forEach(r=>{
+const tr=document.createElement('tr');
+const isSubmitted=r.status==='Submitted';
+const isApproved=r.status==='Approved by Supervisor';
+const canPerformAction=isSubmitted||isApproved;
+
+const coursesHtml='<div style="max-width:400px;word-wrap:break-word;font-size:13px;color:#334155;">'+
+'<strong style="color:#4E4099;">Selected Courses:</strong><br>'+r.courses+
+'<br><br><strong style="color:#be123c;">All Failed Courses:</strong><br>'+(r.failedCourses||'None')+'</div>';
+
+let actionHtml='';
+if(canPerformAction){
+const rejectReturnHtml=isSubmitted?
+'<button class="btn btn-danger btn-sm" onclick="executeReview(\''+r.requestId+'\',\'Reject\')">Reject</button>':'';
+actionHtml=
+'<textarea class="note-input" id="note-'+r.requestId+'" placeholder="Provide decision rationale..."></textarea>'+
+'<div class="action-btns">'+
+(isSubmitted?'<button class="btn btn-gold btn-sm" onclick="executeReview(\''+r.requestId+'\',\'Approve\')">Approve</button> '+rejectReturnHtml:'')+
+'<button class="btn btn-navy btn-sm" onclick="executeReview(\''+r.requestId+'\',\'Return\')">Return for Modification</button>'+
+'</div>';
+}else{
+actionHtml='<span class="completed-label">Evaluation Completed</span>';
+}
+
+tr.innerHTML=
+'<td><strong>'+r.studentName+'</strong><br><small style="color:#64748b;">ID: '+r.studentId+' | Level: '+(r.level||'-')+'</small></td>'+
+'<td>'+coursesHtml+'</td>'+
+'<td><span class="badge-ch">'+r.totalCredits+' CH</span></td>'+
+'<td><span class="status-label '+getStatusClass(r.status)+'">'+r.status+'</span></td>'+
+'<td>'+actionHtml+'</td>';
+
+tbody.appendChild(tr);
+});
+}catch(e){console.error(e);}
+}
+
+async function executeReview(requestId,action){
+const noteEl=document.getElementById('note-'+requestId);
+const comments=noteEl?noteEl.value.trim():'';
+
+if(action!=='Approve'&&!comments){
+alert('You must enter a reason before returning the request for modification or rejecting it.');
+return;
+}
+
+try{
+const res=await fetch(API+'/supervisor/processAction',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+body:JSON.stringify({requestId,action,comments:comments||null})});
+const data=await res.json();
+if(data.message){loadDashboard();}else{alert(data.error||'Failed');}
+}catch(e){alert('Error');}
+}
+
 function openChangePassword(){document.getElementById('cpModal').classList.add('active');}
 function closeChangePassword(){document.getElementById('cpModal').classList.remove('active');}
-async function changePassword(){const np=document.getElementById('cpNew').value.trim();const cp=document.getElementById('cpConfirm').value.trim();if(!np||!cp||np!==cp){alert('Check passwords');return;}if(np.length<8||!/[A-Z]/.test(np)||!/[a-z]/.test(np)||!/[0-9]/.test(np)||!/[^A-Za-z0-9]/.test(np)){alert('Need: 8+ chars, upper, lower, number, special');return;}const res=await fetch(API+'/auth/account-change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Updated. Login again.');localStorage.clear();location.href='login.html';}else{alert(data.error);}}
+async function changePassword(){
+const np=document.getElementById('cpNew').value.trim();const cp=document.getElementById('cpConfirm').value.trim();
+if(!np||!cp||np!==cp){alert('Check passwords');return;}
+if(np.length<8||!/[A-Z]/.test(np)||!/[a-z]/.test(np)||!/[0-9]/.test(np)||!/[^A-Za-z0-9]/.test(np)){alert('Need: 8+ chars, upper, lower, number, special');return;}
+const res=await fetch(API+'/auth/account-change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});
+const data=await res.json();
+if(res.ok){alert('Updated. Login again.');localStorage.clear();location.href='login.html';}else{alert(data.error);}
+}
 function logout(){localStorage.clear();location.href='login.html';}
 </script>
 </body>
