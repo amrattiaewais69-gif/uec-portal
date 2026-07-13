@@ -32,11 +32,13 @@
 <img src="logo.png" style="width:55px;">
 <h2 style="margin:0;">University of East Capital</h2>
 </div>
-<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 15px;">
-<span id="loggedUser" style="font-size:13px;color:#555;"></span>
-<div>
-<button onclick="openChangePassword()" style="padding:6px 12px;font-size:12px;">🔑 Change Password</button>
-<button class="logout" onclick="logout()" style="padding:6px 12px;font-size:12px;">🚪 Logout</button>
+
+<div style="display:flex;align-items:center;justify-content:center;gap:20px;margin:10px 0;">
+<div id="photoBox" class="studentPhoto" style="width:90px;height:90px;display:none;"></div>
+<div style="text-align:left;">
+<h3 id="name" style="margin:0;font-size:18px;"></h3>
+<p id="sid" style="margin:2px 0;color:#666;font-size:13px;"></p>
+<p id="loggedUser" style="margin:2px 0;color:#555;font-size:12px;"></p>
 </div>
 </div>
 
@@ -61,6 +63,11 @@
 <h3>📩 Submit Appeal</h3>
 <p style="color:#888;font-size:13px;">Submit or check appeal status</p>
 </div>
+</div>
+
+<div style="margin:15px 0;">
+<button onclick="openChangePassword()">🔑 Change Password</button>
+<button class="logout" onclick="logout()">🚪 Logout</button>
 </div>
 
 <div class="footer">Designed by UEC ICT Department<br>© 2026 University of East Capital</div>
