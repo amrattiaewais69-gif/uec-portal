@@ -537,7 +537,7 @@ tr.innerHTML='<td><strong>'+f.name+'</strong></td>'+
 '<td><button class="toggle-btn '+(f.midterm_visible?'on':'')+'" onclick="toggleFaculty(\''+f.name+'\',\'midterm_visible\',this)">'+(f.midterm_visible?'YES':'NO')+'</button></td>'+
 '<td><button class="toggle-btn '+(f.final_visible?'on':'')+'" onclick="toggleFaculty(\''+f.name+'\',\'final_visible\',this)">'+(f.final_visible?'YES':'NO')+'</button></td>'+
 '<td><button class="toggle-btn '+(f.summer_visible?'on':'')+'" onclick="toggleFaculty(\''+f.name+'\',\'summer_visible\',this)">'+(f.summer_visible?'YES':'NO')+'</button></td>'+
-'<td><button class="btn btn-danger btn-sm" onclick="deleteFaculty(\''+f.name+'\')">Delete</button></td>';
+'<td><button class="btn btn-gold btn-sm" onclick="editFaculty(\''+f.name+'\')" style="margin-right:4px;">Edit</button><button class="btn btn-danger btn-sm" onclick="deleteFaculty(\''+f.name+'\')">Delete</button></td>';
 tbody.appendChild(tr);
 });
 if(curVal)sel.value=curVal;
@@ -565,6 +565,13 @@ async function deleteFaculty(name){
 if(!confirm('Delete faculty "'+name+'"?'))return;
 await fetch(API+'/admin/faculties/'+encodeURIComponent(name),{method:'DELETE',headers:{'Authorization':'Bearer '+token}});
 loadFaculties();
+}
+async function editFaculty(oldName){
+const newName=prompt('Rename faculty "'+oldName+'" to:',oldName);
+if(!newName||newName===oldName)return;
+const res=await fetch(API+'/admin/faculties/'+encodeURIComponent(oldName),{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newName})});
+const data=await res.json();
+if(data.success){loadFaculties();}else{alert(data.error||'Failed');}
 }
 
 function openChangePassword(){document.getElementById('cpModal').classList.add('active');}

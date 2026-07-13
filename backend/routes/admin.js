@@ -609,6 +609,21 @@ router.delete('/faculties/:name', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
+router.put('/faculties/:name', async (req, res) => {
+  try {
+    const oldName = decodeURIComponent(req.params.name);
+    const { newName } = req.body;
+    if (!newName) return res.status(400).json({ error: 'New name required' });
+    if (newName === oldName) return res.json({ message: 'No change', success: true });
+    const existing = await pool.query('SELECT id FROM faculties WHERE name = $1', [newName]);
+    if (existing.rows.length > 0) return res.status(400).json({ error: 'Faculty "' + newName + '" already exists' });
+    await pool.query('UPDATE faculties SET name = $1 WHERE name = $2', [newName, oldName]);
+    await pool.query('UPDATE students SET faculty = $1 WHERE faculty = $2', [newName, oldName]);
+    await pool.query('UPDATE courses SET faculty = $1 WHERE faculty = $2', [newName, oldName]);
+    res.json({ message: 'Faculty renamed to "' + newName + '"', success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
 router.put('/faculties/:name/toggle', async (req, res) => {
   try {
     const { name } = req.params;
