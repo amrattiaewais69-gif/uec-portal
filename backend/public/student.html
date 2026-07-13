@@ -35,7 +35,7 @@
 <p id="loggedUser" style="margin:5px 0;font-size:14px;color:#555;"></p>
 
 <div style="display:flex;align-items:center;gap:20px;margin:15px 0;justify-content:center;">
-<img id="photo" class="studentPhoto" style="display:none;">
+<div id="photoBox" class="studentPhoto" style="display:none;"></div>
 <div style="text-align:left;">
 <h3 id="name" style="margin:0;"></h3>
 <p id="sid" style="margin:2px 0;color:#666;"></p>
@@ -55,9 +55,9 @@
 <h3>☀️ Summer Results</h3>
 <p style="color:#888;font-size:13px;">View your summer course results</p>
 </div>
-<div class="section resultCard" onclick="viewResult('open')">
-<h3>📂 Open Results</h3>
-<p style="color:#888;font-size:13px;">View open/results</p>
+<div class="section resultCard" onclick="window.location='appeal.html'">
+<h3>📩 Submit Appeal</h3>
+<p style="color:#888;font-size:13px;">Submit or check appeal status</p>
 </div>
 </div>
 
@@ -112,6 +112,14 @@ if(!token){location.href='login.html';}
 if(localStorage.getItem('portalFirstLogin')==='1'){localStorage.removeItem('portalFirstLogin');document.getElementById('loginBox').style.display='none';document.getElementById('firstLoginBox').style.display='block';}
 else if(token){document.getElementById('loginBox').style.display='none';document.getElementById('studentPanel').style.display='block';loadAll();}
 
+function makeAvatar(name){
+const initials=name.split(' ').map(w=>w[0]).join('').toUpperCase().substring(0,2);
+const colors=['#345a9d','#27ae60','#e74c3c','#8e44ad','#e67e22','#16a085','#2c3e50'];
+let h=0;for(let i=0;i<name.length;i++)h=name.charCodeAt(i)+((h<<5)-h);
+const c=colors[Math.abs(h)%colors.length];
+return 'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" rx="60" fill="'+c+'"/><text x="60" y="68" font-family="Arial,sans-serif" font-size="40" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">'+initials+'</text></svg>');
+}
+
 async function login(){
 const id=document.getElementById('id').value.trim();
 const pass=document.getElementById('pass').value;
@@ -159,10 +167,15 @@ currentStudent=data;
 document.getElementById('name').innerText=data.name;
 document.getElementById('sid').innerText='Student ID: '+data.id+' | '+data.faculty;
 
-const photo=document.getElementById('photo');
-photo.src='https://amrattiaewais69-gif.github.io/student-results/photos/'+data.id+'.jpg';
-photo.style.display='block';
-photo.onerror=function(){this.style.display='none';};
+const pb=document.getElementById('photoBox');
+pb.style.display='block';
+pb.innerHTML='';
+const img=new Image();
+img.src='https://amrattiaewais69-gif.github.io/student-results/photos/'+data.id+'.jpg';
+img.style.cssText='width:100%;height:100%;border-radius:50%;object-fit:cover;';
+img.onerror=function(){pb.innerHTML='';pb.style.backgroundImage='url('+makeAvatar(data.name)+')';};
+img.onload=function(){pb.appendChild(img);};
+setTimeout(function(){if(!pb.querySelector('img')){pb.style.backgroundImage='url('+makeAvatar(data.name)+')';}},2000);
 }catch(e){}
 }
 
@@ -206,7 +219,8 @@ container.innerHTML=html;
 }
 
 function toggleCourse(el,code){
-if(el.checked){selectedCourses.push(code);}else{selectedCourses=selectedCourses.filter(c=>c!==code);}
+if(el.checked){if(!selectedCourses.includes(code))selectedCourses.push(code);}
+else{selectedCourses=selectedCourses.filter(c=>c!==code);}
 }
 
 async function submitRegistration(){
@@ -220,7 +234,7 @@ if(res.ok){alert(data.message);loadRegStatus();}else{alert(data.error||'Failed')
 
 async function viewResult(type){
 currentResultType=type;
-const titles={midterm:'Midterm Results',final:'Final Results',summer:'Summer Results',open:'Open Results'};
+const titles={midterm:'Midterm Results',final:'Final Results',summer:'Summer Results'};
 document.getElementById('resultTitle').textContent=titles[type]+' — '+currentStudent.name;
 document.getElementById('resultContent').innerHTML='<p style="text-align:center;">Loading...</p>';
 document.getElementById('resultModal').style.display='flex';
@@ -256,7 +270,7 @@ if(!currentResultData)return;
 const{jsPDF}=window.jspdf;
 const doc=new jsPDF();
 const d=currentResultData;
-const typeLabels={midterm:'Midterm Result-Semester 2',final:'Final Result-Semester 2',summer:'Summer Result',open:'Open Result'};
+const typeLabels={midterm:'Midterm Result-Semester 2',final:'Final Result-Semester 2',summer:'Summer Result'};
 
 try{
 const lr=await fetch('logo.png');
@@ -292,20 +306,6 @@ columnStyles:{0:{cellWidth:130},1:{cellWidth:40}}});
 
 let lastY=doc.lastAutoTable.finalY+15;
 
-try{
-const photoUrl='https://amrattiaewais69-gif.github.io/student-results/photos/'+d.id+'.jpg';
-const photoRes=await fetch(photoUrl);
-if(photoRes.ok){
-const photoBlob=await photoRes.blob();
-const photoReader=new FileReader();
-photoReader.onloadend=function(){
-doc.addImage(photoReader.result,'JPG',170,lastY-10,25,25);
-finishPdf(doc,d.id,lastY+20);
-};
-photoReader.readAsDataURL(photoBlob);
-return;
-}
-}catch(e){}
 finishPdf(doc,d.id,lastY);
 };
 lr2.readAsDataURL(lb);
@@ -314,12 +314,11 @@ lr2.readAsDataURL(lb);
 
 function finishPdf(doc,studentId,lastY){
 const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=100x100&data='+encodeURIComponent('https://portal.uec.edu.eg/verify?id='+studentId);
-doc.addImage(qrUrl,'PNG',165,lastY,30,30);
+doc.addImage(qrUrl,'PNG',15,lastY,30,30);
 doc.setFontSize(9);
 doc.setTextColor(100);
-doc.text('Scan to verify result authenticity',180,lastY+35,{align:'center'});
+doc.text('Scan to verify result authenticity',30,lastY+35,{align:'center'});
 
-lastY+=45;
 doc.setDrawColor(0,70,140);
 doc.line(130,lastY,195,lastY);
 doc.setFontSize(10);
