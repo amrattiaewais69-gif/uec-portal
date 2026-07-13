@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UEC Result Verification</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="card" id="searchBox">
+<img src="logo.png" class="logo"><h2>🎓 UEC Result Verification</h2>
+<p>Enter Student ID to verify results</p>
+<input id="sid" placeholder="Student ID">
+<button onclick="verify()">Verify</button>
+<p id="error" style="color:red;margin-top:10px;display:none;"></p>
+</div>
+<div class="card" id="resultBox" style="display:none">
+<h2 style="color:#27ae60;">✓ Verified Result</h2>
+<h3 id="name"></h3>
+<p id="sid2"></p>
+<table id="resultTable"><tr><th>Course</th><th>Grade</th></tr></table>
+<h3>GPA: <span id="gpa"></span></h3>
+<p style="margin-top:15px;font-size:13px;color:#555;">This result has been verified by UEC</p>
+<button onclick="back()">Verify Another</button>
+</div>
+<div class="footer">Designed by UEC ICT Department<br>© 2026 University of East Capital</div>
+<script>
+const API=window.location.origin+'/api';
+const params=new URLSearchParams(window.location.search);
+if(params.get('id')){document.getElementById('sid').value=params.get('id');verify();}
+async function verify(){const id=document.getElementById('sid').value.trim();if(!id){alert('Enter Student ID');return;}const err=document.getElementById('error');err.style.display='none';try{const res=await fetch(API+'/verify/'+id);if(!res.ok){err.textContent='Student not found';err.style.display='block';return;}const data=await res.json();document.getElementById('searchBox').style.display='none';document.getElementById('resultBox').style.display='block';document.getElementById('name').textContent=data.name;document.getElementById('sid2').textContent='Student ID: '+data.id;document.getElementById('gpa').textContent=data.gpa;const t=document.getElementById('resultTable');t.innerHTML='<tr><th>Course</th><th>Grade</th></tr>';for(const[c,g]of Object.entries(data.courses)){const tr=document.createElement('tr');const td1=document.createElement('td');td1.textContent=c;const td2=document.createElement('td');td2.textContent=g;tr.appendChild(td1);tr.appendChild(td2);t.appendChild(tr);}}catch(e){err.textContent='Connection error';err.style.display='block';}}
+function back(){document.getElementById('searchBox').style.display='block';document.getElementById('resultBox').style.display='none';document.getElementById('sid').value='';}
+</script>
+</body>
+</html>

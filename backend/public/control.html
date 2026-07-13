@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UEC Control Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="card" id="loginBox">
+<img src="logo.png" class="logo"><h2>🎓 UEC Control Panel</h2>
+<input id="username" placeholder="Username"><input id="password" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+</div>
+<div class="panel" id="controlPanel" style="display:none">
+<h2>Appeal Control Dashboard</h2>
+<p id="loggedUser" style="margin:5px 0;font-size:14px;color:#555;"></p>
+<div style="display:flex;gap:15px;flex-wrap:wrap;justify-content:center;margin:15px 0;">
+<div class="section" style="flex:1;min-width:150px;text-align:center;"><h3>Total</h3><p id="statTotal" style="font-size:24px;font-weight:600;">0</p></div>
+<div class="section" style="flex:1;min-width:150px;text-align:center;"><h3>Pending</h3><p id="statPending" style="font-size:24px;font-weight:600;color:#f39c12;">0</p></div>
+<div class="section" style="flex:1;min-width:150px;text-align:center;"><h3>Under Review</h3><p id="statReview" style="font-size:24px;font-weight:600;color:#3498db;">0</p></div>
+<div class="section" style="flex:1;min-width:150px;text-align:center;"><h3>Revised</h3><p id="statRevised" style="font-size:24px;font-weight:600;color:#27ae60;">0</p></div>
+</div>
+<div class="section">
+<h3>All Appeals</h3>
+<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:15px;">
+<input id="searchAppeal" placeholder="Search by name or ID..." style="width:350px;" oninput="filterAppeals()">
+<select id="statusFilter" style="width:150px;" onchange="filterAppeals()">
+<option value="all">All Status</option><option value="Pending">Pending</option><option value="Under Review">Under Review</option><option value="Revised with change">Revised with change</option><option value="Revised without change">Revised without change</option>
+</select></div>
+<div class="table-container"><table id="appealsTable"><tr><th>ID</th><th>Student</th><th>Course</th><th>Reason</th><th>Status</th><th>Date</th><th>Action</th></tr></table></div>
+</div>
+<button onclick="exportCSV()">Export CSV</button>
+<button onclick="openChangePassword()">Change Password</button>
+<button class="logout" onclick="logout()">Logout</button>
+</div>
+<div class="footer">Designed by UEC ICT Department<br>© 2026 University of East Capital</div>
+<div id="cpModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+<div class="modal"><h3>Change Password</h3>
+<input id="cpNew" type="password" placeholder="New"><input id="cpConfirm" type="password" placeholder="Confirm">
+<p style="font-size:11px;color:#888;">Min 8 chars, upper, lower, number, special</p>
+<div style="text-align:right;margin-top:15px;"><button class="save" onclick="changePassword()">Save</button><button class="cancel" onclick="closeChangePassword()">Cancel</button></div></div></div>
+<script>
+const API=window.location.origin+'/api';let token=localStorage.getItem('portalToken');let allAppeals=[];
+if(!token||localStorage.getItem('portalRole')!=='control'){localStorage.clear();location.href='login.html';}
+if(token){document.getElementById('loginBox').style.display='none';document.getElementById('controlPanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+(localStorage.getItem('portalDisplayName')||'control');loadAppeals();}
+async function login(){const u=document.getElementById('username').value;const p=document.getElementById('password').value;const res=await fetch(API+'/auth/account-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,loginType:'control'})});const data=await res.json();if(res.ok&&data.role==='control'){token=data.token;localStorage.setItem('portalToken',token);localStorage.setItem('portalRole','control');localStorage.setItem('portalDisplayName',data.displayName);document.getElementById('loginBox').style.display='none';document.getElementById('controlPanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+data.displayName;loadAppeals();}else{alert('Invalid credentials');}}
+async function loadAppeals(){const res=await fetch(API+'/control/appeals',{headers:{'Authorization':'Bearer '+token}});if(!res.ok)return;allAppeals=await res.json();updateStats();filterAppeals();}
+function updateStats(){document.getElementById('statTotal').textContent=allAppeals.length;document.getElementById('statPending').textContent=allAppeals.filter(a=>a.status==='Pending').length;document.getElementById('statReview').textContent=allAppeals.filter(a=>a.status==='Under Review').length;document.getElementById('statRevised').textContent=allAppeals.filter(a=>a.status.startsWith('Revised')).length;}
+function filterAppeals(){const q=document.getElementById('searchAppeal').value.toLowerCase();const sf=document.getElementById('statusFilter').value;const t=document.getElementById('appealsTable');t.innerHTML='<tr><th>ID</th><th>Student</th><th>Course</th><th>Reason</th><th>Status</th><th>Date</th><th>Action</th></tr>';allAppeals.filter(a=>{if(sf!=='all'&&a.status!==sf)return false;if(q&&!a.student_name.toLowerCase().includes(q)&&!a.student_id.toLowerCase().includes(q))return false;return true;}).forEach(a=>{const tr=document.createElement('tr');tr.innerHTML='<td></td><td></td><td></td><td></td><td></td><td></td><td></td>';tr.cells[0].textContent=a.id;tr.cells[1].textContent=a.student_name+' ('+a.student_id+')';tr.cells[2].textContent=a.course;tr.cells[3].textContent=a.reason;tr.cells[4].textContent=a.status;tr.cells[5].textContent=new Date(a.date).toLocaleDateString();const sel=document.createElement('select');['Pending','Under Review','Revised with change','Revised without change'].forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;if(s===a.status)o.selected=true;sel.appendChild(o);});const btn=document.createElement('button');btn.textContent='Update';btn.onclick=()=>updateStatus(a.id,sel.value);tr.cells[6].appendChild(sel);tr.cells[6].appendChild(btn);t.appendChild(tr);});}
+async function updateStatus(id,status){const res=await fetch(API+'/control/appeal-status',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({id,status})});const data=await res.json();if(res.ok){loadAppeals();}else{alert(data.error||'Failed');}}
+function exportCSV(){let csv='ID,Student ID,Student Name,Course,Reason,Status,Date\n';allAppeals.forEach(a=>{csv+=`${a.id},${a.student_id},"${a.student_name}",${a.course},"${a.reason}",${a.status},${a.date}\n`;});const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='UEC_Appeals.csv';link.click();}
+function openChangePassword(){document.getElementById('cpModal').style.display='flex';}
+function closeChangePassword(){document.getElementById('cpModal').style.display='none';}
+async function changePassword(){const np=document.getElementById('cpNew').value.trim();const cp=document.getElementById('cpConfirm').value.trim();if(!np||!cp||np!==cp){alert('Check passwords');return;}if(np.length<8){alert('Min 8 chars');return;}if(!/[A-Z]/.test(np)){alert('Need uppercase');return;}if(!/[a-z]/.test(np)){alert('Need lowercase');return;}if(!/[0-9]/.test(np)){alert('Need number');return;}if(!/[^A-Za-z0-9]/.test(np)){alert('Need special');return;}const res=await fetch(API+'/auth/account-change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Updated. Login again.');localStorage.clear();location.href='login.html';}else{alert(data.error||'Failed');}}
+function logout(){localStorage.clear();location.href='login.html';}
+</script>
+</body>
+</html>

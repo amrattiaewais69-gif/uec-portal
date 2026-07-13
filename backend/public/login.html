@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UEC Portal Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="card">
+<img src="logo.png" class="logo">
+<h2>🎓 University of East Capital</h2>
+<p>Unified Student Portal</p>
+<select id="loginType" onchange="updatePlaceholder()">
+<option value="student">Student</option>
+<option value="supervisor">Supervisor</option>
+<option value="finance">Finance</option>
+<option value="accountant">Accountant</option>
+<option value="control">Control</option>
+<option value="admin">Admin</option>
+</select>
+<input id="username" placeholder="Student ID">
+<input id="password" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+<p id="error" style="color:red;margin-top:10px;display:none;"></p>
+</div>
+<div class="footer">Designed by UEC ICT Department<br>© 2026 University of East Capital</div>
+<script>
+if (localStorage.getItem('portalToken')) {
+  const role = localStorage.getItem('portalRole');
+  if (role) location.href = role + '.html';
+}
+function updatePlaceholder() {
+  const t = document.getElementById('loginType').value;
+  document.getElementById('username').placeholder = t === 'student' ? 'Student ID' : 'Username';
+}
+async function login() {
+  const type = document.getElementById('loginType').value;
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  const errEl = document.getElementById('error');
+  errEl.style.display = 'none';
+
+  if (!username || !password) { errEl.textContent = 'Fill in all fields'; errEl.style.display = 'block'; return; }
+
+  const isStudent = type === 'student';
+  const body = isStudent ? { id: username, password } : { username, password, loginType: type };
+  const endpoint = isStudent ? '/api/auth/login' : '/api/auth/account-login';
+
+  try {
+    const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Login failed'; errEl.style.display = 'block'; return; }
+
+    localStorage.setItem('portalToken', data.token);
+    localStorage.setItem('portalRole', isStudent ? 'student' : data.role);
+    if (isStudent) {
+      localStorage.setItem('portalUser', JSON.stringify(data.student));
+      if (data.student.firstLogin) {
+        localStorage.setItem('portalFirstLogin', '1');
+      }
+    } else {
+      localStorage.setItem('portalDisplayName', data.displayName || data.username);
+      localStorage.setItem('portalUsername', data.username);
+    }
+    location.href = (isStudent ? 'student' : data.role) + '.html';
+  } catch (err) {
+    errEl.textContent = 'Connection error'; errEl.style.display = 'block';
+  }
+}
+</script>
+</body>
+</html>

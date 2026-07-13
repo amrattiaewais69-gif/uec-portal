@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UEC Student Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="card" id="loginBox">
+<img src="logo.png" class="logo">
+<h2>🎓 University of East Capital</h2>
+<p>Student Portal</p>
+<input id="id" placeholder="Student ID">
+<input id="pass" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+</div>
+<div class="card" id="firstLoginBox" style="display:none">
+<img src="logo.png" class="logo">
+<h2>Welcome to UEC Portal</h2>
+<p>Please set your new password</p>
+<input id="newPass" type="password" placeholder="New Password">
+<input id="confirmPass" type="password" placeholder="Confirm Password">
+<p style="font-size:11px;color:#888;text-align:left;">Min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special. Example: MyPass@2026</p>
+<button onclick="submitNewPassword()">Submit</button>
+</div>
+<div class="card" id="loadingBox" style="display:none"><h3>Loading...</h3></div>
+<div class="panel" id="studentPanel" style="display:none">
+<h2>Student Dashboard</h2>
+<p id="loggedUser" style="margin:5px 0;font-size:14px;color:#555;"></p>
+<div class="section" id="resultsSection">
+<h3>Exam Results</h3>
+<img id="photo" class="studentPhoto" style="display:none;">
+<h3 id="name"></h3>
+<p id="sid"></p>
+<table id="resultTable"><tr><th>Course</th><th>Grade</th></tr></table>
+<h3>GPA: <span id="gpa"></span></h3>
+<button onclick="downloadPDF()">Download Official Result</button>
+<button onclick="window.location='appeal.html'" style="background:#d35400;">Submit Appeal</button>
+</div>
+<div class="section" id="regSection">
+<h3>Summer Registration</h3>
+<p id="regStatus"></p>
+<div id="regCourses"></div>
+<button onclick="submitRegistration()">Submit Registration</button>
+</div>
+<button onclick="openChangePassword()">Change Password</button>
+<button class="logout" onclick="logout()">Logout</button>
+</div>
+<div class="footer">Designed by UEC ICT Department<br>© 2026 University of East Capital</div>
+<div id="cpModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+<div class="modal">
+<h3>Change Password</h3>
+<input id="cpNew" type="password" placeholder="New Password">
+<input id="cpConfirm" type="password" placeholder="Confirm New Password">
+<p style="font-size:11px;color:#888;">Min 8 chars, uppercase, lowercase, number, special. Example: MyPass@2026</p>
+<div style="text-align:right;margin-top:15px;">
+<button class="save" onclick="changePassword()">Save</button>
+<button class="cancel" onclick="closeChangePassword()">Cancel</button>
+</div></div></div>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+<script>
+const API=window.location.origin+'/api';
+let token=localStorage.getItem('portalToken');
+let currentStudent=null;
+let studentData=null;
+let selectedCourses=[];
+if(!token){location.href='login.html';}
+if(localStorage.getItem('portalFirstLogin')==='1'){localStorage.removeItem('portalFirstLogin');document.getElementById('loginBox').style.display='none';document.getElementById('firstLoginBox').style.display='block';}
+else if(token){document.getElementById('loginBox').style.display='none';document.getElementById('studentPanel').style.display='block';loadAll();}
+async function login(){const id=document.getElementById('id').value.trim();const pass=document.getElementById('pass').value;document.getElementById('loginBox').style.display='none';document.getElementById('loadingBox').style.display='block';try{const res=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,password:pass})});const data=await res.json();document.getElementById('loadingBox').style.display='none';if(res.ok){token=data.token;localStorage.setItem('portalToken',token);localStorage.setItem('portalUser',JSON.stringify(data.student));currentStudent=data.student;if(data.student.firstLogin){document.getElementById('firstLoginBox').style.display='block';}else{document.getElementById('studentPanel').style.display='block';loadAll();}}else{alert(data.error||'Invalid credentials');document.getElementById('loginBox').style.display='block';}}catch(e){alert('Connection error');document.getElementById('loginBox').style.display='block';}}
+async function submitNewPassword(){const np=document.getElementById('newPass').value.trim();const cp=document.getElementById('confirmPass').value.trim();if(!np||!cp){alert('Fill in all fields');return;}if(np!==cp){alert('Passwords do not match');return;}if(np.length<8){alert('Min 8 characters');return;}if(!/[A-Z]/.test(np)){alert('Need uppercase');return;}if(!/[a-z]/.test(np)){alert('Need lowercase');return;}if(!/[0-9]/.test(np)){alert('Need number');return;}if(!/[^A-Za-z0-9]/.test(np)){alert('Need special character');return;}try{const res=await fetch(API+'/auth/change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Password updated. Please login again.');localStorage.clear();location.href='login.html';}else{alert(data.error||'Failed');}}catch(e){alert('Error');}}
+async function loadAll(){await Promise.all([loadResults(),loadRegistration()]);}
+async function loadResults(){try{const res=await fetch(API+'/student/results',{headers:{'Authorization':'Bearer '+token}});if(!res.ok){localStorage.clear();location.href='login.html';return;}const data=await res.json();currentStudent=data;document.getElementById('name').innerText=data.name;document.getElementById('sid').innerText='Student ID: '+data.id;document.getElementById('gpa').innerText=data.gpa;const photo=document.getElementById('photo');photo.src='https://amrattiaewais69-gif.github.io/student-results/photos/'+data.id+'.jpg';photo.style.display='block';photo.onerror=function(){this.style.display='none';};const table=document.getElementById('resultTable');table.innerHTML='<tr><th>Course</th><th>Grade</th></tr>';for(const[c,g]of Object.entries(data.courses)){const tr=document.createElement('tr');const td1=document.createElement('td');td1.textContent=c;const td2=document.createElement('td');td2.textContent=g;tr.appendChild(td1);tr.appendChild(td2);table.appendChild(tr);}}catch(e){}}
+async function loadRegistration(){try{const res=await fetch(API+'/student/dashboard',{headers:{'Authorization':'Bearer '+token}});if(!res.ok)return;studentData=await res.json();document.getElementById('loggedUser').textContent='Welcome, '+studentData.studentInfo.name+' | '+studentData.studentInfo.faculty;document.getElementById('regStatus').innerHTML='Status: <b>'+studentData.currentRequest.status+'</b> | Credits: '+studentData.currentRequest.totalCredits+' | Fees: '+studentData.currentRequest.totalFees+' EGP';selectedCourses=studentData.selectedCourses||[];const container=document.getElementById('regCourses');container.innerHTML='';if(studentData.courses.length===0){container.innerHTML='<p style="color:#999;">No courses available for your failed courses</p>';return;}let html='<table><tr><th>Code</th><th>Course</th><th>Credits</th><th>Fee</th><th>Available</th><th>Select</th></tr>';studentData.courses.forEach(c=>{const sel=selectedCourses.includes(c.courseCode);html+='<tr><td>'+c.courseCode+'</td><td>'+c.courseName+'</td><td>'+c.creditHours+'</td><td>'+c.feePerCredit*c.creditHours+'</td><td>'+c.availableSeats+'</td><td><input type="checkbox" value="'+c.courseCode+'" '+(sel?'checked':'')+' onchange="toggleCourse(this,\''+c.courseCode+'\')"></td></tr>';});html+='</table>';container.innerHTML=html;}catch(e){}}
+function toggleCourse(el,code){if(el.checked){selectedCourses.push(code);}else{selectedCourses=selectedCourses.filter(c=>c!==code);}}
+async function submitRegistration(){if(selectedCourses.length===0){alert('Select at least one course');return;}try{const res=await fetch(API+'/student/submitRegistration',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({courses:selectedCourses})});const data=await res.json();if(res.ok){alert(data.message);loadRegistration();}else{alert(data.error||'Failed');}}catch(e){alert('Error');}}
+function openChangePassword(){document.getElementById('cpModal').style.display='flex';}
+function closeChangePassword(){document.getElementById('cpModal').style.display='none';}
+async function changePassword(){const np=document.getElementById('cpNew').value.trim();const cp=document.getElementById('cpConfirm').value.trim();if(!np||!cp){alert('Fill in all fields');return;}if(np!==cp){alert('Passwords do not match');return;}if(np.length<8){alert('Min 8 characters');return;}if(!/[A-Z]/.test(np)){alert('Need uppercase');return;}if(!/[a-z]/.test(np)){alert('Need lowercase');return;}if(!/[0-9]/.test(np)){alert('Need number');return;}if(!/[^A-Za-z0-9]/.test(np)){alert('Need special character');return;}try{const res=await fetch(API+'/auth/change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Password updated. Login again.');localStorage.clear();location.href='login.html';}else{alert(data.error||'Failed');}}catch(e){alert('Error');}}
+function logout(){localStorage.clear();location.href='login.html';}
+async function downloadPDF(){if(!currentStudent)return;const{jsPDF}=window.jspdf;const doc=new jsPDF();try{const lr=await fetch('logo.png');const lb=await lr.blob();const lr2=new FileReader();lr2.onloadend=function(){doc.addImage(lr2.result,'PNG',15,10,30,30);doc.setFont('helvetica','bold');doc.setFontSize(22);doc.setTextColor(0,51,102);doc.text('University of East Capital',105,25,{align:'center'});doc.setFontSize(16);doc.setTextColor(0,0,0);doc.text('MidTerm Result-Semester 2',105,35,{align:'center'});doc.setFontSize(12);doc.setFont('helvetica','bold');doc.text('Student Name:',20,55);doc.text('Student ID:',20,65);doc.setFont('helvetica','normal');doc.text(currentStudent.name,60,55);doc.text(currentStudent.id,60,65);const body=[];for(const[c,g]of Object.entries(currentStudent.courses)){body.push([c,g]);}body.push(['GPA',currentStudent.gpa]);doc.autoTable({startY:90,head:[['Course','Grade']],body,theme:'grid',headStyles:{fillColor:[0,70,140],textColor:255,halign:'center',fontStyle:'bold',fontSize:14},bodyStyles:{halign:'center',fontSize:12,cellPadding:3},alternateRowStyles:{fillColor:[245,247,250]},columnStyles:{0:{cellWidth:130},1:{cellWidth:40}}});let y=doc.lastAutoTable.finalY+20;doc.line(130,y,190,y);doc.setFontSize(11);doc.text('Controller of Examinations Unit',160,y+8,{align:'center'});doc.save(currentStudent.id+'_UEC_Result.pdf');};lr2.readAsDataURL(lb);}catch(e){doc.save('result.pdf');}}
+</script>
+</body>
+</html>

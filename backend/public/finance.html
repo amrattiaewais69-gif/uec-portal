@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UEC Finance Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="card" id="loginBox">
+<img src="logo.png" class="logo"><h2>🎓 UEC Finance Portal</h2>
+<input id="username" placeholder="Username"><input id="password" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+</div>
+<div class="panel" id="financePanel" style="display:none">
+<h2>Finance Dashboard</h2>
+<p id="loggedUser" style="margin:5px 0;font-size:14px;color:#555;"></p>
+<div class="section"><h3>Registration Payments</h3>
+<div class="table-container"><table id="regTable"><tr><th>Student</th><th>Faculty</th><th>Courses</th><th>Total</th><th>Paid</th><th>Remaining</th><th>Status</th><th>Action</th></tr></table></div></div>
+<div class="section"><h3>Appeal Payments</h3>
+<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:15px;">
+<input id="searchStudent" placeholder="Student ID" style="width:200px;">
+<button onclick="searchStudent()">Search</button></div>
+<div id="studentInfo"></div>
+<div id="appealCourses"></div></div>
+<button onclick="exportPayments()">Export Payments CSV</button>
+<button onclick="openChangePassword()">Change Password</button>
+<button class="logout" onclick="logout()">Logout</button>
+</div>
+<div class="footer">Designed by UEC ICT Department<br>© 2026 University of East Capital</div>
+<div id="cpModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+<div class="modal"><h3>Change Password</h3>
+<input id="cpNew" type="password" placeholder="New"><input id="cpConfirm" type="password" placeholder="Confirm">
+<p style="font-size:11px;color:#888;">Min 8 chars, upper, lower, number, special</p>
+<div style="text-align:right;margin-top:15px;"><button class="save" onclick="changePassword()">Save</button><button class="cancel" onclick="closeChangePassword()">Cancel</button></div></div></div>
+<script>
+const API=window.location.origin+'/api';let token=localStorage.getItem('portalToken');
+if(!token||!['finance','accountant'].includes(localStorage.getItem('portalRole'))){localStorage.clear();location.href='login.html';}
+if(token){document.getElementById('loginBox').style.display='none';document.getElementById('financePanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+(localStorage.getItem('portalDisplayName')||'finance');loadDashboard();}
+async function login(){const u=document.getElementById('username').value;const p=document.getElementById('password').value;const res=await fetch(API+'/auth/account-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,loginType:'finance'})});const data=await res.json();if(res.ok&&(data.role==='finance'||data.role==='accountant')){token=data.token;localStorage.setItem('portalToken',token);localStorage.setItem('portalRole',data.role);localStorage.setItem('portalDisplayName',data.displayName);document.getElementById('loginBox').style.display='none';document.getElementById('financePanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+data.displayName;loadDashboard();}else{alert('Invalid credentials');}}
+async function loadDashboard(){const res=await fetch(API+'/finance/dashboard',{headers:{'Authorization':'Bearer '+token}});if(!res.ok)return;const data=await res.json();const t=document.getElementById('regTable');t.innerHTML='<tr><th>Student</th><th>Faculty</th><th>Courses</th><th>Total</th><th>Paid</th><th>Remaining</th><th>Status</th><th>Action</th></tr>';data.requests.forEach(r=>{const tr=document.createElement('tr');tr.innerHTML='<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>';tr.cells[0].textContent=r.studentName+' ('+r.studentId+')';tr.cells[1].textContent=r.faculty;tr.cells[2].textContent=r.courses;tr.cells[3].textContent=r.totalFees;tr.cells[4].textContent=r.paidAmount;tr.cells[5].textContent=r.remainingAmount;tr.cells[6].textContent=r.status;if(r.status!=='Registered Successfully'){const btn=document.createElement('button');btn.textContent='Process';btn.onclick=()=>processPayment(r);tr.cells[7].appendChild(btn);}t.appendChild(tr);});}
+function processPayment(r){const amt=prompt('Amount to pay (Total: '+r.totalFees+', Paid: '+r.paidAmount+', Remaining: '+r.remainingAmount+'):');if(!amt||isNaN(amt))return;const ref=prompt('Reference number:');const method=prompt('Payment method:');if(!confirm('Process payment of '+amt+' EGP?'))return;fetch(API+'/finance/processPayment',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({requestId:r.requestId,amountToPay:Number(amt),refNum:ref,paymentMethod:method})}).then(res=>res.json()).then(data=>{if(data.message){alert('Done! Receipt: '+data.receiptNo);loadDashboard();}else{alert(data.error||'Failed');}});}
+async function searchStudent(){const id=document.getElementById('searchStudent').value.trim();if(!id)return;const res=await fetch(API+'/finance/student/'+id,{headers:{'Authorization':'Bearer '+token}});if(!res.ok){document.getElementById('studentInfo').innerHTML='<p style="color:red;">Student not found</p>';return;}const data=await res.json();document.getElementById('studentInfo').innerHTML='<h3>'+data.name+' ('+data.id+')</h3>';const c=document.getElementById('appealCourses');c.innerHTML='';if(Object.keys(data.courses).length===0){c.innerHTML='<p>No courses available for appeal payment</p>';return;}let h='<table><tr><th>Course</th><th>Grade</th><th>Action</th></tr>';for(const[course,grade]of Object.entries(data.courses)){h+='<tr><td>'+course+'</td><td>'+grade+'</td><td><button onclick="recordPayment(\''+data.id+'\',\''+course.replace(/'/g,"\\'")+'\')">Record Payment</button></td></tr>';}h+='</table>';c.innerHTML=h;}
+function recordPayment(studentId,course){const amt=prompt('Payment amount:');if(!amt||isNaN(amt))return;fetch(API+'/finance/payment',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({studentId,course,amount:Number(amt)})}).then(r=>r.json()).then(d=>{alert(d.message||d.error);searchStudent();});}
+function exportPayments(){window.open(API+'/finance/payments/export?token='+token);}
+function openChangePassword(){document.getElementById('cpModal').style.display='flex';}
+function closeChangePassword(){document.getElementById('cpModal').style.display='none';}
+async function changePassword(){const np=document.getElementById('cpNew').value.trim();const cp=document.getElementById('cpConfirm').value.trim();if(!np||!cp||np!==cp){alert('Check passwords');return;}if(np.length<8){alert('Min 8');return;}if(!/[A-Z]/.test(np)){alert('Need upper');return;}if(!/[a-z]/.test(np)){alert('Need lower');return;}if(!/[0-9]/.test(np)){alert('Need number');return;}if(!/[^A-Za-z0-9]/.test(np)){alert('Need special');return;}const res=await fetch(API+'/auth/account-change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Updated. Login again.');localStorage.clear();location.href='login.html';}else{alert(data.error);}}
+function logout(){localStorage.clear();location.href='login.html';}
+</script>
+</body>
+</html>
