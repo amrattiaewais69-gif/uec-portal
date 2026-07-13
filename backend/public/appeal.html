@@ -48,7 +48,7 @@ if(user.id){
 document.getElementById('studentName').textContent=user.name||'';
 document.getElementById('studentId').textContent='Student ID: '+(user.id||'');
 const photo=document.getElementById('photo');
-photo.src='https://amrattiaewais69-gif.github.io/student-results/photos/'+user.id+'.jpg';
+photo.src='/photos/'+user.id+'.jpg';
 photo.style.display='block';
 photo.onerror=function(){this.style.display='none';};
 }
