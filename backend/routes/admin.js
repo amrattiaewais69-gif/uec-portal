@@ -283,4 +283,89 @@ router.delete('/clear-all', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
+// Dashboard metrics
+router.get('/metrics', async (req, res) => {
+  try {
+    const { rows: enrolled } = await pool.query("SELECT COUNT(*)::int as cnt FROM requests WHERE status = 'Registered Successfully'");
+    const { rows: pendingApproval } = await pool.query("SELECT COUNT(*)::int as cnt FROM requests WHERE status = 'Submitted'");
+    const { rows: pendingPayment } = await pool.query("SELECT COUNT(*)::int as cnt FROM requests WHERE status IN ('Approved by Supervisor','Pending Payment','Partially Paid')");
+    const { rows: revenue } = await pool.query("SELECT COALESCE(SUM(amount_paid),0)::numeric as total FROM registration_payments WHERE status IN ('Verified','Settlement/Discount')");
+    res.json({
+      registeredStudents: enrolled[0].cnt,
+      pendingApprovals: pendingApproval[0].cnt,
+      pendingPayments: pendingPayment[0].cnt,
+      totalRevenue: Number(revenue[0].total)
+    });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Course allocation stats
+router.get('/course-stats', async (req, res) => {
+  try {
+    const { rows: courses } = await pool.query('SELECT course_code, course_name, max_seats, credit_hours FROM courses ORDER BY course_code');
+    const stats = [];
+    for (const c of courses) {
+      const { rows: count } = await pool.query('SELECT COUNT(DISTINCT student_id)::int as cnt FROM course_selections WHERE course_code = $1', [c.course_code]);
+      const allocated = count[0].cnt;
+      const pct = c.max_seats > 0 ? Math.round((allocated / c.max_seats) * 100) : 0;
+      stats.push({ code: c.course_code, name: c.course_name, allocated, max: c.max_seats, credits: c.credit_hours, percentage: pct + '%' });
+    }
+    res.json(stats);
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Export: Paid students
+router.get('/export/paid', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT r.student_id, s.name, r.total_credits, r.total_fees,
+        COALESCE(p.total_paid,0)::numeric as total_paid,
+        r.status, r.payment_date::text
+      FROM requests r JOIN students s ON r.student_id = s.student_id
+      LEFT JOIN (SELECT request_id, SUM(amount_paid)::numeric as total_paid FROM registration_payments WHERE status IN ('Verified','Settlement/Discount') GROUP BY request_id) p ON r.request_id = p.request_id
+      WHERE r.status = 'Registered Successfully' ORDER BY r.student_id
+    `);
+    let csv = '\uFEFFStudent ID,Student Name,Credits,Total Fees,Total Paid,Status,Payment Date\n';
+    rows.forEach(r => { csv += `"${r.student_id}","${r.name}",${r.total_credits},${r.total_fees},${r.total_paid},"${r.status}","${r.payment_date||''}"\n`; });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename=Paid_Students.csv');
+    res.send(csv);
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Export: Awaiting approval
+router.get('/export/pending-approval', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT r.student_id, s.name, r.total_credits, r.total_fees, r.status, r.supervisor_comments
+      FROM requests r JOIN students s ON r.student_id = s.student_id
+      WHERE r.status = 'Submitted' ORDER BY r.student_id
+    `);
+    let csv = '\uFEFFStudent ID,Student Name,Credits,Total Fees,Status,Supervisor Comments\n';
+    rows.forEach(r => { csv += `"${r.student_id}","${r.name}",${r.total_credits},${r.total_fees},"${r.status}","${r.supervisor_comments||''}"\n`; });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename=Pending_Approval.csv');
+    res.send(csv);
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Export: Approved & unpaid
+router.get('/export/unpaid', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT r.student_id, s.name, r.total_credits, r.total_fees, r.status,
+        COALESCE(p.total_paid,0)::numeric as total_paid,
+        (r.total_fees - COALESCE(p.total_paid,0))::numeric as remaining
+      FROM requests r JOIN students s ON r.student_id = s.student_id
+      LEFT JOIN (SELECT request_id, SUM(amount_paid)::numeric as total_paid FROM registration_payments WHERE status IN ('Verified','Settlement/Discount') GROUP BY request_id) p ON r.request_id = p.request_id
+      WHERE r.status IN ('Approved by Supervisor','Pending Payment','Partially Paid') ORDER BY r.student_id
+    `);
+    let csv = '\uFEFFStudent ID,Student Name,Credits,Total Fees,Total Paid,Remaining,Status\n';
+    rows.forEach(r => { csv += `"${r.student_id}","${r.name}",${r.total_credits},${r.total_fees},${r.total_paid},${r.remaining},"${r.status}"\n`; });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename=Approved_Unpaid.csv');
+    res.send(csv);
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
 module.exports = router;

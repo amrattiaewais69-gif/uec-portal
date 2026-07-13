@@ -35,6 +35,42 @@
 <div style="padding:25px 30px;">
 
 <div style="margin-bottom:25px;">
+<h3 style="color:var(--navy);font-family:'Playfair Display',serif;margin-bottom:12px;font-size:17px;">Data Export Operations</h3>
+<div style="background:var(--white);padding:15px 20px;border-radius:8px;border:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;">
+<button class="btn btn-gold btn-sm" onclick="window.open(API+'/admin/export/paid?token='+token)">Export Paid Students (CSV)</button>
+<button class="btn btn-navy btn-sm" onclick="window.open(API+'/admin/export/pending-approval?token='+token)">Export Awaiting Approval (CSV)</button>
+<button class="btn btn-navy btn-sm" onclick="window.open(API+'/admin/export/unpaid?token='+token)">Export Approved & Unpaid (CSV)</button>
+</div>
+</div>
+
+<div style="margin-bottom:25px;">
+<h3 style="color:var(--navy);font-family:'Playfair Display',serif;margin-bottom:12px;font-size:17px;">Program Metric Framework Indicators</h3>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:15px;">
+<div style="background:var(--white);border:1px solid var(--border);border-top:3px solid #16a34a;border-radius:8px;padding:20px;text-align:center;">
+<p style="color:#64748b;font-size:12px;margin:0 0 5px;font-weight:600;">Fully Enrolled Cohort</p>
+<h1 id="metricEnrolled" style="margin:0;font-size:36px;color:#16a34a;">0</h1>
+</div>
+<div style="background:var(--white);border:1px solid var(--border);border-top:3px solid #d97706;border-radius:8px;padding:20px;text-align:center;">
+<p style="color:#64748b;font-size:12px;margin:0 0 5px;font-weight:600;">Awaiting Advisory Review</p>
+<h1 id="metricAdvisory" style="margin:0;font-size:36px;color:#d97706;">0</h1>
+</div>
+<div style="background:var(--white);border:1px solid var(--border);border-top:3px solid #0284c7;border-radius:8px;padding:20px;text-align:center;">
+<p style="color:#64748b;font-size:12px;margin:0 0 5px;font-weight:600;">Awaiting Cashier Clearance</p>
+<h1 id="metricFinance" style="margin:0;font-size:36px;color:#0284c7;">0</h1>
+</div>
+<div style="background:var(--white);border:1px solid var(--border);border-top:3px solid #7c3aed;border-radius:8px;padding:20px;text-align:center;">
+<p style="color:#64748b;font-size:12px;margin:0 0 5px;font-weight:600;">Aggregated Gross Revenue</p>
+<h1 id="metricRevenue" style="margin:0;font-size:32px;color:#7c3aed;">0 EGP</h1>
+</div>
+</div>
+</div>
+
+<div style="margin-bottom:25px;">
+<h3 style="color:var(--navy);font-family:'Playfair Display',serif;margin-bottom:12px;font-size:17px;">Course Allocation & Satiation Analytics</h3>
+<div style="overflow-x:auto;"><table id="analyticsTable"><thead><tr><th>Course Code</th><th>Course Name</th><th>Booked Seats</th><th>Max Cap</th><th>Satiation Index</th></tr></thead><tbody></tbody></table></div>
+</div>
+
+<div style="margin-bottom:25px;">
 <h3 style="color:var(--navy);font-family:'Playfair Display',serif;margin-bottom:12px;font-size:17px;">Upload Student Results (CSV)</h3>
 <p style="font-size:12px;color:var(--gray);margin-bottom:10px;">CSV format: student_id, name, course, grade, gpa</p>
 <label style="display:inline-block;padding:8px 18px;background:var(--navy);color:var(--white);border-radius:var(--radius);cursor:pointer;font-size:12px;font-weight:700;">Choose CSV<input type="file" id="csvFile" accept=".csv" style="display:none;" onchange="previewCSV()"></label>
@@ -127,7 +163,22 @@ loadAll();
 }
 
 async function login(){const u=document.getElementById('username').value;const p=document.getElementById('password').value;const errEl=document.getElementById('loginError');errEl.style.display='none';if(!u||!p){errEl.textContent='Fill in all fields';errEl.style.display='block';return;}try{const res=await fetch(API+'/auth/account-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,loginType:'admin'})});const data=await res.json();if(res.ok&&data.role==='admin'){token=data.token;localStorage.setItem('portalToken',token);localStorage.setItem('portalRole','admin');localStorage.setItem('portalDisplayName',data.displayName);document.getElementById('loginBox').style.display='none';document.getElementById('adminPanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+data.displayName;loadAll();}else{errEl.textContent=data.error||'Invalid credentials';errEl.style.display='block';}}catch(e){errEl.textContent='Connection error';errEl.style.display='block';}}
-function loadAll(){loadAccounts();loadStudents();loadAppealSettings();}
+function loadAll(){loadAccounts();loadStudents();loadAppealSettings();loadMetrics();loadCourseStats();}
+
+async function loadMetrics(){
+try{const res=await fetch(API+'/admin/metrics',{headers:{'Authorization':'Bearer '+token}});
+if(res.ok){const d=await res.json();document.getElementById('metricEnrolled').textContent=d.registeredStudents;document.getElementById('metricAdvisory').textContent=d.pendingApprovals;document.getElementById('metricFinance').textContent=d.pendingPayments;document.getElementById('metricRevenue').textContent=d.totalRevenue.toLocaleString()+' EGP';}}catch(e){}
+}
+
+async function loadCourseStats(){
+try{const res=await fetch(API+'/admin/course-stats',{headers:{'Authorization':'Bearer '+token}});
+if(!res.ok)return;const data=await res.json();const tbody=document.querySelector('#analyticsTable tbody');tbody.innerHTML='';
+data.forEach(c=>{
+const tr=document.createElement('tr');
+tr.innerHTML='<td><strong>'+c.code+'</strong></td><td>'+c.name+'</td><td>'+c.allocated+' Students</td><td>'+c.max+' Slots</td><td><div style="background:#e2e8f0;border-radius:6px;width:100%;height:16px;position:relative;overflow:hidden;"><div style="background:linear-gradient(90deg,#3b82f6,#2563eb);height:100%;width:'+c.percentage+';transition:width 0.5s;"></div><small style="position:absolute;top:0;left:8px;color:#0f172a;font-weight:700;font-size:11px;line-height:16px;">'+c.percentage+'</small></div></td>';
+tbody.appendChild(tr);
+});}catch(e){}
+}
 function previewCSV(){const f=document.getElementById('csvFile').files[0];if(!f)return;const r=new FileReader();r.onload=function(e){csvData=e.target.result;const lines=csvData.split('\n').slice(0,6);let h='<table><tr>';lines[0].split(',').forEach(c=>h+='<th>'+c.trim()+'</th>');h+='</tr>';for(let i=1;i<lines.length;i++){if(!lines[i].trim())continue;h+='<tr>';lines[i].split(',').forEach(c=>h+='<td>'+c.trim()+'</td>');h+='</tr>';}h+='</table>';document.getElementById('preview').innerHTML=h;};r.readAsText(f);}
 async function uploadResults(){if(!csvData){alert('Select CSV first');return;}const res=await fetch(API+'/admin/upload-results',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({csvData})});const data=await res.json();if(res.ok){alert(data.message+(data.errors.length?'\nErrors: '+data.errors.join('\n'):''));document.getElementById('preview').innerHTML='';document.getElementById('csvFile').value='';csvData=null;}else{alert(data.error||'Failed');}}
 async function loadAccounts(){const res=await fetch(API+'/admin/accounts',{headers:{'Authorization':'Bearer '+token}});if(res.ok)allAccounts=await res.json();}
