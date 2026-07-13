@@ -65,6 +65,7 @@ if(data.student.firstLogin)localStorage.setItem('portalFirstLogin','1');
 }else{
 localStorage.setItem('portalDisplayName',data.displayName||data.username);
 localStorage.setItem('portalUsername',data.username);
+if(data.firstLogin)localStorage.setItem('portalFirstLogin','1');
 }
 location.href=(isStudent?'student':data.role)+'.html';
 }catch(err){errEl.textContent='Connection error';errEl.style.display='block';}

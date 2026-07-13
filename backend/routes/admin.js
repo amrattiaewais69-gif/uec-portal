@@ -69,18 +69,19 @@ router.get('/accounts', async (req, res) => {
 router.post('/accounts', async (req, res) => {
   try {
     const { username, password, role, display_name } = req.body;
-    if (!username || !password || !role) return res.status(400).json({ error: 'Username, password, and role required' });
+    if (!username || !role) return res.status(400).json({ error: 'Username and role required' });
     const validRoles = ['finance', 'control', 'admin'];
     if (!validRoles.includes(role)) return res.status(400).json({ error: 'Invalid role' });
 
-    const passwordError = validatePassword(password);
+    const actualPassword = password || username;
+    const passwordError = validatePassword(actualPassword);
     if (passwordError) return res.status(400).json({ error: passwordError });
 
     const existing = await pool.query('SELECT username FROM users WHERE username = $1', [username]);
     if (existing.rows.length > 0) return res.status(400).json({ error: 'Username already exists' });
 
-    const hash = await bcrypt.hash(password, 10);
-    await pool.query('INSERT INTO users (username, password_hash, role, display_name) VALUES ($1, $2, $3, $4)', [username, hash, role, display_name || '']);
+    const hash = await bcrypt.hash(actualPassword, 10);
+    await pool.query('INSERT INTO users (username, password_hash, role, display_name, first_login) VALUES ($1, $2, $3, $4, true)', [username, hash, role, display_name || '']);
     res.json({ message: 'Account created successfully' });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
@@ -128,7 +129,7 @@ router.put('/accounts/:username/reset-password', async (req, res) => {
     if (passwordError) return res.status(400).json({ error: passwordError });
 
     const hash = await bcrypt.hash(newPassword, 10);
-    const result = await pool.query('UPDATE users SET password_hash = $1 WHERE username = $2', [hash, username]);
+    const result = await pool.query('UPDATE users SET password_hash = $1, first_login = true WHERE username = $2', [hash, username]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Account not found' });
     await pool.query("INSERT INTO audit_log (log_id, actor, description) VALUES ($1, $2, $3)", [uuidv4(), req.user.username, 'Reset password for: ' + username]);
     res.json({ message: `Password reset for ${username}` });
@@ -455,9 +456,9 @@ router.post('/resetPassword', async (req, res) => {
     if (role === 'student') {
       result = await pool.query('UPDATE students SET password_hash = $1, first_login = true WHERE student_id = $2', [hash, userId]);
     } else if (role === 'supervisor') {
-      result = await pool.query('UPDATE supervisors SET password_hash = $1 WHERE supervisor_id = $2', [hash, userId]);
+      result = await pool.query('UPDATE supervisors SET password_hash = $1, first_login = true WHERE supervisor_id = $2', [hash, userId]);
     } else {
-      result = await pool.query('UPDATE users SET password_hash = $1 WHERE username = $2', [hash, userId]);
+      result = await pool.query('UPDATE users SET password_hash = $1, first_login = true WHERE username = $2', [hash, userId]);
     }
     if (result.rowCount === 0) return res.status(404).json({ error: 'User not found' });
     await pool.query("INSERT INTO audit_log (log_id, actor, description) VALUES ($1, $2, $3)", [uuidv4(), req.user.username, `Reset password for ${role}: ${userId}`]);
@@ -559,7 +560,7 @@ router.post('/addSupervisor', async (req, res) => {
     const existing = await pool.query('SELECT supervisor_id FROM supervisors WHERE supervisor_id = $1', [supervisorId]);
     if (existing.rows.length > 0) return res.status(400).json({ error: 'Supervisor ID already exists' });
     const hash = await bcrypt.hash(supervisorId, 10);
-    await pool.query('INSERT INTO supervisors (supervisor_id, name, email, password_hash) VALUES ($1,$2,$3,$4)', [supervisorId, name, email || null, hash]);
+    await pool.query('INSERT INTO supervisors (supervisor_id, name, email, password_hash, first_login) VALUES ($1,$2,$3,$4,true)', [supervisorId, name, email || null, hash]);
     res.json({ message: `Supervisor ${supervisorId} added. Default password: ${supervisorId}`, success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
@@ -573,9 +574,9 @@ router.post('/addUser', async (req, res) => {
     if (!validRoles.includes(role)) return res.status(400).json({ error: 'Invalid role' });
     const existing = await pool.query('SELECT username FROM users WHERE username = $1', [username]);
     if (existing.rows.length > 0) return res.status(400).json({ error: 'Username already exists' });
-    const defaultPwd = username + '123';
+    const defaultPwd = username;
     const hash = await bcrypt.hash(defaultPwd, 10);
-    await pool.query('INSERT INTO users (username, password_hash, role, display_name) VALUES ($1,$2,$3,$4)', [username, hash, role, username]);
+    await pool.query('INSERT INTO users (username, password_hash, role, display_name, first_login) VALUES ($1,$2,$3,$4,true)', [username, hash, role, username]);
     res.json({ message: `User ${username} added. Default password: ${defaultPwd}`, success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });

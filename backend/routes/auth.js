@@ -57,8 +57,8 @@ router.post('/account-login', async (req, res) => {
       const sup = result.rows[0];
       const valid = await bcrypt.compare(password, sup.password_hash);
       if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
-      const token = jwt.sign({ username: sup.supervisor_id, name: sup.name, role: 'supervisor' }, process.env.JWT_SECRET, { expiresIn: '8h' });
-      return res.json({ token, role: 'supervisor', username: sup.supervisor_id, displayName: sup.name });
+      const token = jwt.sign({ username: sup.supervisor_id, name: sup.name, role: 'supervisor', firstLogin: sup.first_login }, process.env.JWT_SECRET, { expiresIn: '8h' });
+      return res.json({ token, role: 'supervisor', username: sup.supervisor_id, displayName: sup.name, firstLogin: sup.first_login });
     }
 
     // Check users table
@@ -68,8 +68,8 @@ router.post('/account-login', async (req, res) => {
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
-    const token = jwt.sign({ username: user.username, role: user.role }, process.env.JWT_SECRET, { expiresIn: '8h' });
-    res.json({ token, role: user.role, username: user.username, displayName: user.display_name || user.username });
+    const token = jwt.sign({ username: user.username, role: user.role, firstLogin: user.first_login }, process.env.JWT_SECRET, { expiresIn: '8h' });
+    res.json({ token, role: user.role, username: user.username, displayName: user.display_name || user.username, firstLogin: user.first_login });
   } catch (err) {
     console.error('Account login error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -112,11 +112,11 @@ router.put('/account-change-password', authenticateToken, async (req, res) => {
     // Try supervisors table first
     const supResult = await pool.query('SELECT supervisor_id FROM supervisors WHERE supervisor_id = $1', [req.user.username]);
     if (supResult.rows.length > 0) {
-      await pool.query('UPDATE supervisors SET password_hash = $1 WHERE supervisor_id = $2', [hash, req.user.username]);
+      await pool.query('UPDATE supervisors SET password_hash = $1, first_login = false WHERE supervisor_id = $2', [hash, req.user.username]);
       return res.json({ message: 'Password updated successfully' });
     }
 
-    await pool.query('UPDATE users SET password_hash = $1 WHERE username = $2', [hash, req.user.username]);
+    await pool.query('UPDATE users SET password_hash = $1, first_login = false WHERE username = $2', [hash, req.user.username]);
     res.json({ message: 'Password updated successfully' });
   } catch (err) {
     console.error('Account change password error:', err);

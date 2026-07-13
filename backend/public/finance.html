@@ -37,6 +37,18 @@
 </div>
 </div>
 
+<div class="login-wrapper" id="firstLoginBox" style="display:none">
+<div class="login-box">
+<img src="logo.png" class="logo">
+<h2>Welcome to UEC Portal</h2>
+<p>Please set your new password</p>
+<input id="flNewPass" type="password" placeholder="New Password">
+<input id="flConfirmPass" type="password" placeholder="Confirm Password">
+<p style="font-size:11px;color:#999;text-align:left;">Min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special. Example: MyPass@2026</p>
+<button class="btn btn-gold" style="width:100%;margin-top:5px;" onclick="submitFirstLoginPassword()">Set Password</button>
+</div>
+</div>
+
 <div class="panel" id="financePanel" style="display:none">
 <div class="header-bar">
 <div class="brand"><img src="logo.png"><h2>Finance Dashboard</h2></div>
@@ -149,6 +161,10 @@ if(!token||savedRole!=='finance'){
 localStorage.clear();
 document.getElementById('loadingScreen').style.display='none';
 document.getElementById('loginBox').style.display='flex';
+}else if(localStorage.getItem('portalFirstLogin')==='1'){
+localStorage.removeItem('portalFirstLogin');
+document.getElementById('loadingScreen').style.display='none';
+document.getElementById('firstLoginBox').style.display='flex';
 }else{
 document.getElementById('loadingScreen').style.display='none';
 document.getElementById('financePanel').style.display='block';
@@ -169,7 +185,9 @@ const u=document.getElementById('username').value;const p=document.getElementByI
 const errEl=document.getElementById('loginError');errEl.style.display='none';
 if(!u||!p){errEl.textContent='Fill in all fields';errEl.style.display='block';return;}
 try{const res=await fetch(API+'/auth/account-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,loginType:'finance'})});const data=await res.json();
-if(res.ok&&data.role==='finance'){token=data.token;localStorage.setItem('portalToken',token);localStorage.setItem('portalRole',data.role);localStorage.setItem('portalDisplayName',data.displayName);document.getElementById('loginBox').style.display='none';document.getElementById('financePanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+data.displayName;}
+if(res.ok&&data.role==='finance'){token=data.token;localStorage.setItem('portalToken',token);localStorage.setItem('portalRole',data.role);localStorage.setItem('portalDisplayName',data.displayName);
+if(data.firstLogin){localStorage.setItem('portalFirstLogin','1');document.getElementById('loginBox').style.display='none';document.getElementById('firstLoginBox').style.display='flex';}
+else{document.getElementById('loginBox').style.display='none';document.getElementById('financePanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+data.displayName;}}
 else{errEl.textContent=data.error||'Invalid credentials';errEl.style.display='block';}}catch(e){errEl.textContent='Connection error';errEl.style.display='block';}
 }
 
@@ -317,6 +335,7 @@ rows.forEach(r=>{const tr=document.createElement('tr');tr.innerHTML='<td>'+r.stu
 
 function openChangePassword(){document.getElementById('cpModal').classList.add('active');}
 async function changePassword(){const np=document.getElementById('cpNew').value.trim();const cp=document.getElementById('cpConfirm').value.trim();if(!np||!cp||np!==cp){alert('Check passwords');return;}if(np.length<8||!/[A-Z]/.test(np)||!/[a-z]/.test(np)||!/[0-9]/.test(np)||!/[^A-Za-z0-9]/.test(np)){alert('Need: 8+ chars, upper, lower, number, special');return;}const res=await fetch(API+'/auth/account-change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Updated. Login again.');localStorage.clear();location.href='login.html';}else{alert(data.error);}}
+async function submitFirstLoginPassword(){const np=document.getElementById('flNewPass').value.trim();const cp=document.getElementById('flConfirmPass').value.trim();if(!np||!cp||np!==cp){alert('Check passwords');return;}if(np.length<8||!/[A-Z]/.test(np)||!/[a-z]/.test(np)||!/[0-9]/.test(np)||!/[^A-Za-z0-9]/.test(np)){alert('Need: 8+ chars, upper, lower, number, special');return;}const res=await fetch(API+'/auth/account-change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Password updated. Please login again.');localStorage.clear();location.href='login.html';}else{alert(data.error||'Failed');}}
 function logout(){localStorage.clear();location.href='login.html';}
 </script>
 </body>
