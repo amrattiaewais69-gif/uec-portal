@@ -143,6 +143,16 @@ router.post('/payment', authenticateToken, requireRole('finance'), async (req, r
   }
 });
 
+router.get('/appeal-history', authenticateToken, requireRole('finance'), async (req, res) => {
+  try {
+    const result = await pool.query("SELECT student_id, student_name, course, amount, TO_CHAR(date, 'YYYY-MM-DD HH24:MI:SS') as date FROM appeal_payments ORDER BY date DESC");
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Appeal history error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.get('/payments/export', authenticateToken, requireRole('finance'), async (req, res) => {
   try {
     const result = await pool.query("SELECT student_id, student_name, course, amount, COALESCE(recorded_by, 'Unknown') as recorded_by, TO_CHAR(date, 'YYYY-MM-DD HH24:MI:SS') as date FROM appeal_payments ORDER BY date DESC");
