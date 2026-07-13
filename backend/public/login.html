@@ -8,7 +8,10 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="login-wrapper">
+<div id="loadingScreen" class="login-wrapper">
+<div class="login-box"><h3 style="color:var(--navy);">Loading...</h3></div>
+</div>
+<div id="loginScreen" class="login-wrapper" style="display:none">
 <div class="login-box">
 <img src="logo.png" class="logo">
 <h2>University of East Capital</h2>
@@ -28,9 +31,13 @@
 </div>
 <div class="footer">Designed by UEC ICT Department<br>© 2026 University of East Capital</div>
 <script>
-if(localStorage.getItem('portalToken')){
-const role=localStorage.getItem('portalRole');
-if(role)location.href=role+'.html';
+const existingToken=localStorage.getItem('portalToken');
+const existingRole=localStorage.getItem('portalRole');
+if(existingToken&&existingRole){
+location.href=existingRole+'.html';
+}else{
+document.getElementById('loadingScreen').style.display='none';
+document.getElementById('loginScreen').style.display='flex';
 }
 function updatePlaceholder(){
 const t=document.getElementById('loginType').value;

@@ -8,7 +8,10 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="login-wrapper" id="loginBox">
+<div id="loadingScreen" class="login-wrapper">
+<div class="login-box"><h3 style="color:var(--navy);">Loading...</h3></div>
+</div>
+<div id="loginBox" class="login-wrapper" style="display:none">
 <div class="login-box">
 <img src="logo.png" class="logo">
 <h2>UEC Finance Portal</h2>
@@ -16,6 +19,7 @@
 <input id="username" placeholder="Username">
 <input id="password" type="password" placeholder="Password">
 <button class="btn btn-gold" style="width:100%;margin-top:10px;" onclick="login()">Login</button>
+<p id="loginError" style="color:#dc3545;margin-top:10px;display:none;font-size:13px;"></p>
 </div>
 </div>
 
@@ -46,9 +50,9 @@
 </div>
 
 <div class="footer-bar">
-<button class="btn btn-navy btn-sm" onclick="exportPayments()">📥 Export Payments CSV</button>
-<button class="btn btn-outline btn-sm" onclick="openChangePassword()">🔑 Change Password</button>
-<button class="btn btn-danger btn-sm" onclick="logout()">🚪 Logout</button>
+<button class="btn btn-navy btn-sm" onclick="exportPayments()">Export Payments CSV</button>
+<button class="btn btn-outline btn-sm" onclick="openChangePassword()">Change Password</button>
+<button class="btn btn-danger btn-sm" onclick="logout()">Logout</button>
 </div>
 </div>
 
@@ -68,10 +72,22 @@
 </div>
 
 <script>
-const API=window.location.origin+'/api';let token=localStorage.getItem('portalToken');
-if(!token||localStorage.getItem('portalRole')!=='finance'){localStorage.clear();location.href='login.html';}
-if(token){document.getElementById('loginBox').style.display='none';document.getElementById('financePanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+(localStorage.getItem('portalDisplayName')||'finance');loadDashboard();}
-async function login(){const u=document.getElementById('username').value;const p=document.getElementById('password').value;const res=await fetch(API+'/auth/account-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,loginType:'finance'})});const data=await res.json();if(res.ok&&data.role==='finance'){token=data.token;localStorage.setItem('portalToken',token);localStorage.setItem('portalRole',data.role);localStorage.setItem('portalDisplayName',data.displayName);document.getElementById('loginBox').style.display='none';document.getElementById('financePanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+data.displayName;loadDashboard();}else{alert('Invalid credentials');}}
+const API=window.location.origin+'/api';
+let token=localStorage.getItem('portalToken');
+
+const savedRole=localStorage.getItem('portalRole');
+if(!token||savedRole!=='finance'){
+localStorage.clear();
+document.getElementById('loadingScreen').style.display='none';
+document.getElementById('loginBox').style.display='flex';
+}else{
+document.getElementById('loadingScreen').style.display='none';
+document.getElementById('financePanel').style.display='block';
+document.getElementById('loggedUser').textContent='Logged in as: '+(localStorage.getItem('portalDisplayName')||'finance');
+loadDashboard();
+}
+
+async function login(){const u=document.getElementById('username').value;const p=document.getElementById('password').value;const errEl=document.getElementById('loginError');errEl.style.display='none';if(!u||!p){errEl.textContent='Fill in all fields';errEl.style.display='block';return;}try{const res=await fetch(API+'/auth/account-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,loginType:'finance'})});const data=await res.json();if(res.ok&&data.role==='finance'){token=data.token;localStorage.setItem('portalToken',token);localStorage.setItem('portalRole',data.role);localStorage.setItem('portalDisplayName',data.displayName);document.getElementById('loginBox').style.display='none';document.getElementById('financePanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+data.displayName;loadDashboard();}else{errEl.textContent=data.error||'Invalid credentials';errEl.style.display='block';}}catch(e){errEl.textContent='Connection error';errEl.style.display='block';}}
 async function loadDashboard(){const res=await fetch(API+'/finance/dashboard',{headers:{'Authorization':'Bearer '+token}});if(!res.ok)return;const data=await res.json();const t=document.getElementById('regTable');t.innerHTML='<tr><th>Student</th><th>Faculty</th><th>Courses</th><th>Total</th><th>Paid</th><th>Remaining</th><th>Status</th><th>Action</th></tr>';data.requests.forEach(r=>{const tr=document.createElement('tr');tr.innerHTML='<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>';tr.cells[0].textContent=r.studentName+' ('+r.studentId+')';tr.cells[1].textContent=r.faculty;tr.cells[2].textContent=r.courses;tr.cells[3].textContent=r.totalFees;tr.cells[4].textContent=r.paidAmount;tr.cells[5].textContent=r.remainingAmount;tr.cells[6].textContent=r.status;if(r.status!=='Registered Successfully'){const btn=document.createElement('button');btn.textContent='Process';btn.className='btn btn-gold btn-sm';btn.onclick=()=>processPayment(r);tr.cells[7].appendChild(btn);}t.appendChild(tr);});}
 function processPayment(r){const amt=prompt('Amount to pay (Total: '+r.totalFees+', Paid: '+r.paidAmount+', Remaining: '+r.remainingAmount+'):');if(!amt||isNaN(amt))return;const ref=prompt('Reference number:');const method=prompt('Payment method:');if(!confirm('Process payment of '+amt+' EGP?'))return;fetch(API+'/finance/processPayment',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({requestId:r.requestId,amountToPay:Number(amt),refNum:ref,paymentMethod:method})}).then(res=>res.json()).then(data=>{if(data.message){alert('Done! Receipt: '+data.receiptNo);loadDashboard();}else{alert(data.error||'Failed');}});}
 async function searchStudent(){const id=document.getElementById('searchStudent').value.trim();if(!id)return;const res=await fetch(API+'/finance/student/'+id,{headers:{'Authorization':'Bearer '+token}});if(!res.ok){document.getElementById('studentInfo').innerHTML='<p style="color:#dc3545;">Student not found</p>';return;}const data=await res.json();document.getElementById('studentInfo').innerHTML='<h3 style="color:var(--navy);font-size:16px;">'+data.name+' ('+data.id+')</h3>';const c=document.getElementById('appealCourses');c.innerHTML='';if(Object.keys(data.courses).length===0){c.innerHTML='<p style="color:#999;">No courses available for appeal payment</p>';return;}let h='<table><tr><th>Course</th><th>Grade</th><th>Action</th></tr>';for(const[course,grade]of Object.entries(data.courses)){h+='<tr><td>'+course+'</td><td>'+grade+'</td><td><button class="btn btn-gold btn-sm" onclick="recordPayment(\''+data.id+'\',\''+course.replace(/'/g,"\\'")+'\')">Record Payment</button></td></tr>';}h+='</table>';c.innerHTML=h;}
@@ -79,7 +95,7 @@ function recordPayment(studentId,course){const amt=prompt('Payment amount:');if(
 function exportPayments(){window.open(API+'/finance/payments/export?token='+token);}
 function openChangePassword(){document.getElementById('cpModal').classList.add('active');}
 function closeChangePassword(){document.getElementById('cpModal').classList.remove('active');}
-async function changePassword(){const np=document.getElementById('cpNew').value.trim();const cp=document.getElementById('cpConfirm').value.trim();if(!np||!cp||np!==cp){alert('Check passwords');return;}if(np.length<8){alert('Min 8');return;}if(!/[A-Z]/.test(np)){alert('Need upper');return;}if(![a-z]/.test(np)){alert('Need lower');return;}if(!/[0-9]/.test(np)){alert('Need number');return;}if(!/[^A-Za-z0-9]/.test(np)){alert('Need special');return;}const res=await fetch(API+'/auth/account-change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Updated. Login again.');localStorage.clear();location.href='login.html';}else{alert(data.error);}}
+async function changePassword(){const np=document.getElementById('cpNew').value.trim();const cp=document.getElementById('cpConfirm').value.trim();if(!np||!cp||np!==cp){alert('Check passwords');return;}if(np.length<8||!/[A-Z]/.test(np)||!/[a-z]/.test(np)||!/[0-9]/.test(np)||!/[^A-Za-z0-9]/.test(np)){alert('Need: 8+ chars, upper, lower, number, special');return;}const res=await fetch(API+'/auth/account-change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Updated. Login again.');localStorage.clear();location.href='login.html';}else{alert(data.error);}}
 function logout(){localStorage.clear();location.href='login.html';}
 </script>
 </body>

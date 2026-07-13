@@ -8,7 +8,10 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="login-wrapper" id="loginBox">
+<div id="loadingScreen" class="login-wrapper">
+<div class="login-box"><h3 style="color:var(--navy);">Loading...</h3></div>
+</div>
+<div id="loginBox" class="login-wrapper" style="display:none">
 <div class="login-box">
 <img src="logo.png" class="logo">
 <h2>UEC Supervisor Portal</h2>
@@ -16,6 +19,7 @@
 <input id="username" placeholder="Supervisor ID">
 <input id="password" type="password" placeholder="Password">
 <button class="btn btn-gold" style="width:100%;margin-top:10px;" onclick="login()">Login</button>
+<p id="loginError" style="color:#dc3545;margin-top:10px;display:none;font-size:13px;"></p>
 </div>
 </div>
 
@@ -36,8 +40,8 @@
 </div>
 
 <div class="footer-bar">
-<button class="btn btn-outline btn-sm" onclick="openChangePassword()">🔑 Change Password</button>
-<button class="btn btn-danger btn-sm" onclick="logout()">🚪 Logout</button>
+<button class="btn btn-outline btn-sm" onclick="openChangePassword()">Change Password</button>
+<button class="btn btn-danger btn-sm" onclick="logout()">Logout</button>
 </div>
 </div>
 
@@ -57,10 +61,22 @@
 </div>
 
 <script>
-const API=window.location.origin+'/api';let token=localStorage.getItem('portalToken');
-if(!token||localStorage.getItem('portalRole')!=='supervisor'){localStorage.clear();location.href='login.html';}
-if(token){document.getElementById('loginBox').style.display='none';document.getElementById('supPanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+(localStorage.getItem('portalDisplayName')||'supervisor');loadDashboard();}
-async function login(){const u=document.getElementById('username').value;const p=document.getElementById('password').value;const res=await fetch(API+'/auth/account-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,loginType:'supervisor'})});const data=await res.json();if(res.ok&&data.role==='supervisor'){token=data.token;localStorage.setItem('portalToken',token);localStorage.setItem('portalRole','supervisor');localStorage.setItem('portalDisplayName',data.displayName);document.getElementById('loginBox').style.display='none';document.getElementById('supPanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+data.displayName;loadDashboard();}else{alert('Invalid credentials');}}
+const API=window.location.origin+'/api';
+let token=localStorage.getItem('portalToken');
+
+const savedRole=localStorage.getItem('portalRole');
+if(!token||savedRole!=='supervisor'){
+localStorage.clear();
+document.getElementById('loadingScreen').style.display='none';
+document.getElementById('loginBox').style.display='flex';
+}else{
+document.getElementById('loadingScreen').style.display='none';
+document.getElementById('supPanel').style.display='block';
+document.getElementById('loggedUser').textContent='Logged in as: '+(localStorage.getItem('portalDisplayName')||'supervisor');
+loadDashboard();
+}
+
+async function login(){const u=document.getElementById('username').value;const p=document.getElementById('password').value;const errEl=document.getElementById('loginError');errEl.style.display='none';if(!u||!p){errEl.textContent='Fill in all fields';errEl.style.display='block';return;}try{const res=await fetch(API+'/auth/account-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,loginType:'supervisor'})});const data=await res.json();if(res.ok&&data.role==='supervisor'){token=data.token;localStorage.setItem('portalToken',token);localStorage.setItem('portalRole','supervisor');localStorage.setItem('portalDisplayName',data.displayName);document.getElementById('loginBox').style.display='none';document.getElementById('supPanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+data.displayName;loadDashboard();}else{errEl.textContent=data.error||'Invalid credentials';errEl.style.display='block';}}catch(e){errEl.textContent='Connection error';errEl.style.display='block';}}
 async function loadDashboard(){const res=await fetch(API+'/supervisor/dashboard',{headers:{'Authorization':'Bearer '+token}});if(!res.ok)return;const data=await res.json();const t=document.getElementById('reqTable');t.innerHTML='<tr><th>Student</th><th>Level</th><th>Credits</th><th>Fees</th><th>Courses</th><th>Failed</th><th>Status</th><th>Comments</th><th>Action</th></tr>';if(data.requests.length===0){t.innerHTML+='<tr><td colspan="9" style="color:#999;">No requests</td></tr>';return;}data.requests.forEach(r=>{const tr=document.createElement('tr');tr.innerHTML='<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>';tr.cells[0].textContent=r.studentName+' ('+r.studentId+')';tr.cells[1].textContent=r.level||'-';tr.cells[2].textContent=r.totalCredits;tr.cells[3].textContent=r.totalFees;tr.cells[4].textContent=r.courses;tr.cells[5].textContent=r.failedCourses;tr.cells[6].textContent=r.status;tr.cells[7].textContent=r.comments||'-';if(r.status==='Submitted'){const ab=document.createElement('button');ab.textContent='Approve';ab.className='btn btn-gold btn-sm';ab.onclick=()=>processAction(r.requestId,'Approve');const rtb=document.createElement('button');rtb.textContent='Return';rtb.className='btn btn-navy btn-sm';rtb.onclick=()=>processAction(r.requestId,'Return');const rb=document.createElement('button');rb.textContent='Reject';rb.className='btn btn-danger btn-sm';rb.onclick=()=>processAction(r.requestId,'Reject');tr.cells[8].appendChild(ab);tr.cells[8].appendChild(rtb);tr.cells[8].appendChild(rb);}t.appendChild(tr);});}
 async function processAction(requestId,action){const comments=prompt('Comments (optional):');const res=await fetch(API+'/supervisor/processAction',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({requestId,action,comments})});const data=await res.json();if(data.message){loadDashboard();}else{alert(data.error||'Failed');}}
 function openChangePassword(){document.getElementById('cpModal').classList.add('active');}

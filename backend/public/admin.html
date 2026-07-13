@@ -8,7 +8,10 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="login-wrapper" id="loginBox">
+<div id="loadingScreen" class="login-wrapper">
+<div class="login-box"><h3 style="color:var(--navy);">Loading...</h3></div>
+</div>
+<div id="loginBox" class="login-wrapper" style="display:none">
 <div class="login-box">
 <img src="logo.png" class="logo">
 <h2>UEC Admin Panel</h2>
@@ -16,6 +19,7 @@
 <input id="username" placeholder="Username">
 <input id="password" type="password" placeholder="Password">
 <button class="btn btn-gold" style="width:100%;margin-top:10px;" onclick="login()">Login</button>
+<p id="loginError" style="color:#dc3545;margin-top:10px;display:none;font-size:13px;"></p>
 </div>
 </div>
 
@@ -74,8 +78,8 @@
 </div>
 
 <div class="footer-bar">
-<button class="btn btn-outline btn-sm" onclick="openChangePassword()">🔑 Change Password</button>
-<button class="btn btn-danger btn-sm" onclick="logout()">🚪 Logout</button>
+<button class="btn btn-outline btn-sm" onclick="openChangePassword()">Change Password</button>
+<button class="btn btn-danger btn-sm" onclick="logout()">Logout</button>
 </div>
 </div>
 
@@ -106,10 +110,23 @@
 </div>
 
 <script>
-const API=window.location.origin+'/api';let token=localStorage.getItem('portalToken');let csvData=null;let allStudents=[];let allAccounts=[];let editType='',editOriginalId='';
-if(!token||localStorage.getItem('portalRole')!=='admin'){localStorage.clear();location.href='login.html';}
-if(token){document.getElementById('loginBox').style.display='none';document.getElementById('adminPanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+(localStorage.getItem('portalDisplayName')||'admin');loadAll();}
-async function login(){const u=document.getElementById('username').value;const p=document.getElementById('password').value;const res=await fetch(API+'/auth/account-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,loginType:'admin'})});const data=await res.json();if(res.ok&&data.role==='admin'){token=data.token;localStorage.setItem('portalToken',token);localStorage.setItem('portalRole','admin');localStorage.setItem('portalDisplayName',data.displayName);document.getElementById('loginBox').style.display='none';document.getElementById('adminPanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+data.displayName;loadAll();}else{alert('Invalid credentials');}}
+const API=window.location.origin+'/api';
+let token=localStorage.getItem('portalToken');
+let csvData=null;let allStudents=[];let allAccounts=[];let editType='',editOriginalId='';
+
+const savedRole=localStorage.getItem('portalRole');
+if(!token||savedRole!=='admin'){
+localStorage.clear();
+document.getElementById('loadingScreen').style.display='none';
+document.getElementById('loginBox').style.display='flex';
+}else{
+document.getElementById('loadingScreen').style.display='none';
+document.getElementById('adminPanel').style.display='block';
+document.getElementById('loggedUser').textContent='Logged in as: '+(localStorage.getItem('portalDisplayName')||'admin');
+loadAll();
+}
+
+async function login(){const u=document.getElementById('username').value;const p=document.getElementById('password').value;const errEl=document.getElementById('loginError');errEl.style.display='none';if(!u||!p){errEl.textContent='Fill in all fields';errEl.style.display='block';return;}try{const res=await fetch(API+'/auth/account-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,loginType:'admin'})});const data=await res.json();if(res.ok&&data.role==='admin'){token=data.token;localStorage.setItem('portalToken',token);localStorage.setItem('portalRole','admin');localStorage.setItem('portalDisplayName',data.displayName);document.getElementById('loginBox').style.display='none';document.getElementById('adminPanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+data.displayName;loadAll();}else{errEl.textContent=data.error||'Invalid credentials';errEl.style.display='block';}}catch(e){errEl.textContent='Connection error';errEl.style.display='block';}}
 function loadAll(){loadAccounts();loadStudents();loadAppealSettings();}
 function previewCSV(){const f=document.getElementById('csvFile').files[0];if(!f)return;const r=new FileReader();r.onload=function(e){csvData=e.target.result;const lines=csvData.split('\n').slice(0,6);let h='<table><tr>';lines[0].split(',').forEach(c=>h+='<th>'+c.trim()+'</th>');h+='</tr>';for(let i=1;i<lines.length;i++){if(!lines[i].trim())continue;h+='<tr>';lines[i].split(',').forEach(c=>h+='<td>'+c.trim()+'</td>');h+='</tr>';}h+='</table>';document.getElementById('preview').innerHTML=h;};r.readAsText(f);}
 async function uploadResults(){if(!csvData){alert('Select CSV first');return;}const res=await fetch(API+'/admin/upload-results',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({csvData})});const data=await res.json();if(res.ok){alert(data.message+(data.errors.length?'\nErrors: '+data.errors.join('\n'):''));document.getElementById('preview').innerHTML='';document.getElementById('csvFile').value='';csvData=null;}else{alert(data.error||'Failed');}}
@@ -133,7 +150,7 @@ async function saveDeadline(){const v=document.getElementById('appealDeadline').
 async function loadCourses(){const res=await fetch(API+'/admin/courses',{headers:{'Authorization':'Bearer '+token}});if(!res.ok)return;const courses=await res.json();let h='<table><tr><th>Code</th><th>Name</th><th>Credits</th><th>Max Seats</th><th>Fee/Credit</th><th>Faculty</th></tr>';courses.forEach(c=>{h+='<tr><td>'+c.course_code+'</td><td>'+c.course_name+'</td><td>'+c.credit_hours+'</td><td>'+c.max_seats+'</td><td>'+c.fee_per_credit+'</td><td>'+c.faculty+'</td></tr>';});h+='</table>';document.getElementById('coursesTable').innerHTML=h;document.getElementById('coursesSection').style.display='block';}
 function openChangePassword(){document.getElementById('cpModal').classList.add('active');}
 function closeChangePassword(){document.getElementById('cpModal').classList.remove('active');}
-async function changePassword(){const np=document.getElementById('cpNew').value.trim();const cp=document.getElementById('cpConfirm').value.trim();if(!np||!cp){alert('Fill in all fields');return;}if(np!==cp){alert('Passwords do not match');return;}if(np.length<8){alert('Min 8 chars');return;}if(!/[A-Z]/.test(np)){alert('Need uppercase');return;}if(!/[a-z]/.test(np)){alert('Need lowercase');return;}if(!/[0-9]/.test(np)){alert('Need number');return;}if(!/[^A-Za-z0-9]/.test(np)){alert('Need special character');return;}const res=await fetch(API+'/auth/account-change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Updated. Login again.');localStorage.clear();location.href='login.html';}else{alert(data.error||'Failed');}}
+async function changePassword(){const np=document.getElementById('cpNew').value.trim();const cp=document.getElementById('cpConfirm').value.trim();if(!np||!cp){alert('Fill in all fields');return;}if(np!==cp){alert('Passwords do not match');return;}if(np.length<8||!/[A-Z]/.test(np)||!/[a-z]/.test(np)||!/[0-9]/.test(np)||!/[^A-Za-z0-9]/.test(np)){alert('Need: 8+ chars, upper, lower, number, special');return;}const res=await fetch(API+'/auth/account-change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Updated. Login again.');localStorage.clear();location.href='login.html';}else{alert(data.error||'Failed');}}
 function logout(){localStorage.clear();location.href='login.html';}
 </script>
 </body>
