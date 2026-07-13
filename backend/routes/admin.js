@@ -314,23 +314,49 @@ router.get('/course-stats', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-// Export: Paid students
+// Export: Paid students (one row per payment)
 router.get('/export/paid', async (req, res) => {
   try {
-    const { rows } = await pool.query(`
-      SELECT r.student_id, s.name, r.total_credits, r.total_fees,
-        COALESCE(p.total_paid,0)::numeric as total_paid,
-        r.status, r.payment_date::text
+    const { rows: requests } = await pool.query(`
+      SELECT r.request_id, r.student_id, s.name, r.total_credits, r.total_fees, r.status
       FROM requests r JOIN students s ON r.student_id = s.student_id
-      LEFT JOIN (SELECT request_id, SUM(amount_paid)::numeric as total_paid FROM registration_payments WHERE status IN ('Verified','Settlement/Discount') GROUP BY request_id) p ON r.request_id = p.request_id
       WHERE r.status = 'Registered Successfully' ORDER BY r.student_id
     `);
-    let csv = '\uFEFFStudent ID,Student Name,Credits,Total Fees,Total Paid,Status,Payment Date\n';
-    rows.forEach(r => { csv += `"${r.student_id}","${r.name}",${r.total_credits},${r.total_fees},${r.total_paid},"${r.status}","${r.payment_date||''}"\n`; });
+    const { rows: allPayments } = await pool.query("SELECT * FROM registration_payments WHERE status IN ('Verified','Settlement/Discount') ORDER BY payment_date");
+    const { rows: allSelections } = await pool.query('SELECT cs.request_id, c.course_name FROM course_selections cs JOIN courses c ON cs.course_code = c.course_code');
+
+    let csv = '\uFEFFStudent ID,Student Name,Courses,Credits,Total Fees,Discount %,Discount Amount,Discount Approved By,Total Paid,Remaining Due,Payment Status,Status,Payment Method,Payment Amount,Payment Date,Receipt No\n';
+    requests.forEach(r => {
+      const reqPayments = allPayments.filter(p => String(p.request_id) === String(r.request_id));
+      const courses = allSelections.filter(s => s.request_id === r.request_id).map(s => s.course_name).join(' - ');
+      let discountPct = 0, discountAmt = 0, discountBy = '', totalPaidActual = 0;
+      const paidPayments = [];
+      reqPayments.forEach(p => {
+        if (p.payment_method === 'Discount' || p.status === 'Settlement/Discount') {
+          discountAmt += Number(p.amount_paid) || 0;
+          const ref = p.reference_number || '';
+          const m = ref.match(/^Discount\s+(\d+)%\s*-\s*(.+)$/);
+          if (m) { discountPct = Number(m[1]); discountBy = m[2].trim(); }
+        } else {
+          totalPaidActual += Number(p.amount_paid) || 0;
+          paidPayments.push(p);
+        }
+      });
+      const remaining = Number(r.total_fees) - totalPaidActual - discountAmt;
+      const settlementStatus = remaining <= 0 ? 'Settled' : 'Pending';
+      if (paidPayments.length === 0) {
+        csv += `"${r.student_id}","${r.name}","${courses}",${r.total_credits},${r.total_fees},${discountPct || 0},${discountAmt},"${discountBy}",${totalPaidActual},${remaining},"${settlementStatus}","${r.status}","","","",""\n`;
+      } else {
+        paidPayments.forEach(p => {
+          const pDate = p.payment_date ? new Date(p.payment_date).toLocaleDateString('en-GB') : '';
+          csv += `"${r.student_id}","${r.name}","${courses}",${r.total_credits},${r.total_fees},${discountPct || 0},${discountAmt},"${discountBy}",${totalPaidActual},${remaining},"${settlementStatus}","${r.status}","${p.payment_method}",${Number(p.amount_paid)},"${pDate}","${p.receipt_no}"\n`;
+        });
+      }
+    });
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename=Paid_Students.csv');
     res.send(csv);
-  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // Export: Awaiting approval
@@ -349,23 +375,49 @@ router.get('/export/pending-approval', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-// Export: Approved & unpaid
+// Export: Approved & unpaid (one row per payment)
 router.get('/export/unpaid', async (req, res) => {
   try {
-    const { rows } = await pool.query(`
-      SELECT r.student_id, s.name, r.total_credits, r.total_fees, r.status,
-        COALESCE(p.total_paid,0)::numeric as total_paid,
-        (r.total_fees - COALESCE(p.total_paid,0))::numeric as remaining
+    const { rows: requests } = await pool.query(`
+      SELECT r.request_id, r.student_id, s.name, r.total_credits, r.total_fees, r.status
       FROM requests r JOIN students s ON r.student_id = s.student_id
-      LEFT JOIN (SELECT request_id, SUM(amount_paid)::numeric as total_paid FROM registration_payments WHERE status IN ('Verified','Settlement/Discount') GROUP BY request_id) p ON r.request_id = p.request_id
       WHERE r.status IN ('Approved by Supervisor','Pending Payment','Partially Paid') ORDER BY r.student_id
     `);
-    let csv = '\uFEFFStudent ID,Student Name,Credits,Total Fees,Total Paid,Remaining,Status\n';
-    rows.forEach(r => { csv += `"${r.student_id}","${r.name}",${r.total_credits},${r.total_fees},${r.total_paid},${r.remaining},"${r.status}"\n`; });
+    const { rows: allPayments } = await pool.query("SELECT * FROM registration_payments WHERE status IN ('Verified','Settlement/Discount') ORDER BY payment_date");
+    const { rows: allSelections } = await pool.query('SELECT cs.request_id, c.course_name FROM course_selections cs JOIN courses c ON cs.course_code = c.course_code');
+
+    let csv = '\uFEFFStudent ID,Student Name,Courses,Credits,Total Fees,Discount %,Discount Amount,Discount Approved By,Total Paid,Remaining Due,Payment Status,Status,Payment Method,Payment Amount,Payment Date,Receipt No\n';
+    requests.forEach(r => {
+      const reqPayments = allPayments.filter(p => String(p.request_id) === String(r.request_id));
+      const courses = allSelections.filter(s => s.request_id === r.request_id).map(s => s.course_name).join(' - ');
+      let discountPct = 0, discountAmt = 0, discountBy = '', totalPaidActual = 0;
+      const paidPayments = [];
+      reqPayments.forEach(p => {
+        if (p.payment_method === 'Discount' || p.status === 'Settlement/Discount') {
+          discountAmt += Number(p.amount_paid) || 0;
+          const ref = p.reference_number || '';
+          const m = ref.match(/^Discount\s+(\d+)%\s*-\s*(.+)$/);
+          if (m) { discountPct = Number(m[1]); discountBy = m[2].trim(); }
+        } else {
+          totalPaidActual += Number(p.amount_paid) || 0;
+          paidPayments.push(p);
+        }
+      });
+      const remaining = Number(r.total_fees) - totalPaidActual - discountAmt;
+      const settlementStatus = remaining <= 0 ? 'Settled' : 'Pending';
+      if (paidPayments.length === 0) {
+        csv += `"${r.student_id}","${r.name}","${courses}",${r.total_credits},${r.total_fees},${discountPct || 0},${discountAmt},"${discountBy}",${totalPaidActual},${remaining},"${settlementStatus}","${r.status}","","","",""\n`;
+      } else {
+        paidPayments.forEach(p => {
+          const pDate = p.payment_date ? new Date(p.payment_date).toLocaleDateString('en-GB') : '';
+          csv += `"${r.student_id}","${r.name}","${courses}",${r.total_credits},${r.total_fees},${discountPct || 0},${discountAmt},"${discountBy}",${totalPaidActual},${remaining},"${settlementStatus}","${r.status}","${p.payment_method}",${Number(p.amount_paid)},"${pDate}","${p.receipt_no}"\n`;
+        });
+      }
+    });
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename=Approved_Unpaid.csv');
     res.send(csv);
-  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // Update course seats
