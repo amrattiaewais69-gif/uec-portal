@@ -23,6 +23,14 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 .course-edit-form{background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:14px;margin-bottom:14px;display:none;}
 .course-edit-form .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .seat-btn{padding:2px 8px;font-size:14px;cursor:pointer;}
+.toggle-btn{padding:5px 12px;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.2s;}
+.toggle-btn.on{background:#16a34a;color:#fff;}
+.toggle-btn:not(.on){background:#e2e8f0;color:#64748b;}
+.toggle-btn:hover{transform:scale(1.05);}
+#facultiesTable{width:100%;border-collapse:collapse;font-size:13px;}
+#facultiesTable th{background:var(--navy);color:#fff;padding:10px 8px;text-align:center;font-size:12px;font-weight:700;}
+#facultiesTable td{padding:8px;border:1px solid var(--border);text-align:center;}
+#facultiesTable tr:nth-child(even){background:#f8f9fa;}
 </style>
 </head>
 <body>
@@ -209,10 +217,38 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 <!-- Upload Results -->
 <div class="admin-card" style="margin-top:20px;">
 <h3>Upload Student Results (CSV)</h3>
-<p style="font-size:12px;color:var(--gray);margin-bottom:10px;">CSV format: student_id, name, course, grade, gpa</p>
+<div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+<div><label style="font-weight:700;font-size:12px;display:block;margin-bottom:3px;">Result Type</label>
+<select id="resultType" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;">
+<option value="midterm">Midterm</option>
+<option value="final">Final</option>
+<option value="summer">Summer</option>
+</select></div>
+<div><label style="font-weight:700;font-size:12px;display:block;margin-bottom:3px;">Faculty Filter</label>
+<select id="resultFaculty" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;">
+<option value="">All Faculties</option>
+</select></div>
+</div>
+<p style="font-size:12px;color:var(--gray);margin-bottom:10px;">CSV: student_id, name, course, grade, gpa, faculty</p>
 <label style="display:inline-block;padding:8px 18px;background:var(--navy);color:var(--white);border-radius:var(--radius);cursor:pointer;font-size:12px;font-weight:700;">Choose CSV<input type="file" id="csvFile" accept=".csv" style="display:none;" onchange="previewCSV()"></label>
 <div id="preview" style="max-height:200px;overflow:auto;margin:10px 0;"></div>
 <button class="btn btn-gold btn-sm" onclick="uploadResults()">Upload</button>
+</div>
+
+<!-- Faculty Management -->
+<div class="admin-card" style="margin-top:20px;">
+<h3>Faculty Management</h3>
+<p style="font-size:12px;color:var(--gray);margin-bottom:10px;">Control registration and results visibility per faculty</p>
+<div style="display:flex;gap:8px;margin-bottom:12px;">
+<input type="text" id="newFacultyName" placeholder="New Faculty Name" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;flex:1;">
+<button class="btn btn-gold btn-sm" onclick="addFaculty()">Add Faculty</button>
+</div>
+<div style="overflow-x:auto;">
+<table id="facultiesTable">
+<thead><tr><th>Faculty</th><th>Registration</th><th>Midterm</th><th>Final</th><th>Summer</th><th>Action</th></tr></thead>
+<tbody></tbody>
+</table>
+</div>
 </div>
 
 <!-- Appeal Settings -->
@@ -288,7 +324,7 @@ const res=await fetch(API+endpoint,opts);
 return res.json();
 }
 
-function initDashboard(){pullMetrics();loadStudentsForPhoto();loadSupervisorsForDropdown();loadAppealSettings();}
+function initDashboard(){pullMetrics();loadStudentsForPhoto();loadSupervisorsForDropdown();loadAppealSettings();loadFaculties();}
 
 // Metrics
 async function pullMetrics(){
@@ -470,7 +506,9 @@ const r=new FileReader();r.onload=function(e){csvData=e.target.result;const line
 }
 async function uploadResults(){
 if(!csvData){alert('Select CSV first');return;}
-const res=await fetch(API+'/admin/upload-results',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({csvData})});
+const resultType=document.getElementById('resultType').value;
+const faculty=document.getElementById('resultFaculty').value;
+const res=await fetch(API+'/admin/upload-results',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({csvData,resultType,faculty:faculty||undefined})});
 const data=await res.json();
 if(res.ok){alert(data.message+(data.errors.length?'\nErrors: '+data.errors.join('\n'):''));document.getElementById('preview').innerHTML='';document.getElementById('csvFile').value='';csvData=null;}
 else{alert(data.error||'Failed');}
@@ -483,6 +521,51 @@ if(res.ok){const d=await res.json();if(d.appeal_deadline){const dt=new Date(d.ap
 }
 function updateAppealStatus(){const v=document.getElementById('appealDeadline').value;const s=document.getElementById('appealStatus');if(!v){s.innerHTML='Status: <span style="color:#16a34a">OPEN</span> (no deadline)';return;}const dl=new Date(v);const now=new Date();if(now>dl){s.innerHTML='Status: <span style="color:#dc2626">CLOSED</span>';}else{const h=Math.floor((dl-now)/3600000);const m=Math.floor(((dl-now)%3600000)/60000);s.innerHTML='Status: <span style="color:#16a34a">OPEN</span> — closes in '+h+'h '+m+'m';}}
 async function saveDeadline(){const v=document.getElementById('appealDeadline').value;const res=await fetch(API+'/admin/settings',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({appeal_deadline:v||null})});if(res.ok){updateAppealStatus();alert('Saved');}else{alert('Failed');}}
+
+// Faculty Management
+async function loadFaculties(){
+try{
+const faculties=await apiCall('/admin/faculties');
+const tbody=document.querySelector('#facultiesTable tbody');tbody.innerHTML='';
+const sel=document.getElementById('resultFaculty');
+const curVal=sel.value;sel.innerHTML='<option value="">All Faculties</option>';
+faculties.forEach(f=>{
+sel.innerHTML+='<option value="'+f.name+'">'+f.name+'</option>';
+const tr=document.createElement('tr');
+tr.innerHTML='<td><strong>'+f.name+'</strong></td>'+
+'<td><button class="toggle-btn '+(f.reg_open?'on':'')+'" onclick="toggleFaculty(\''+f.name+'\',\'reg_open\',this)">'+(f.reg_open?'OPEN':'CLOSED')+'</button></td>'+
+'<td><button class="toggle-btn '+(f.midterm_visible?'on':'')+'" onclick="toggleFaculty(\''+f.name+'\',\'midterm_visible\',this)">'+(f.midterm_visible?'YES':'NO')+'</button></td>'+
+'<td><button class="toggle-btn '+(f.final_visible?'on':'')+'" onclick="toggleFaculty(\''+f.name+'\',\'final_visible\',this)">'+(f.final_visible?'YES':'NO')+'</button></td>'+
+'<td><button class="toggle-btn '+(f.summer_visible?'on':'')+'" onclick="toggleFaculty(\''+f.name+'\',\'summer_visible\',this)">'+(f.summer_visible?'YES':'NO')+'</button></td>'+
+'<td><button class="btn btn-danger btn-sm" onclick="deleteFaculty(\''+f.name+'\')">Delete</button></td>';
+tbody.appendChild(tr);
+});
+if(curVal)sel.value=curVal;
+}catch(e){}
+}
+async function toggleFaculty(name,field,btn){
+try{
+const res=await fetch(API+'/admin/faculties/'+encodeURIComponent(name)+'/toggle',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({field})});
+const data=await res.json();
+if(data.success){
+const val=data.faculty[field];
+btn.className='toggle-btn '+(val?'on':'');
+btn.textContent=field==='reg_open'?(val?'OPEN':'CLOSED'):(val?'YES':'NO');
+}else{alert(data.error||'Failed');}
+}catch(e){alert('Error');}
+}
+async function addFaculty(){
+const name=document.getElementById('newFacultyName').value.trim();
+if(!name){alert('Enter faculty name');return;}
+const res=await fetch(API+'/admin/faculties',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({name})});
+const data=await res.json();
+if(data.success){document.getElementById('newFacultyName').value='';loadFaculties();}else{alert(data.error||'Failed');}
+}
+async function deleteFaculty(name){
+if(!confirm('Delete faculty "'+name+'"?'))return;
+await fetch(API+'/admin/faculties/'+encodeURIComponent(name),{method:'DELETE',headers:{'Authorization':'Bearer '+token}});
+loadFaculties();
+}
 
 function openChangePassword(){document.getElementById('cpModal').classList.add('active');}
 function closeChangePassword(){document.getElementById('cpModal').classList.remove('active');}

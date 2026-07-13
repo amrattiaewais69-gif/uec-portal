@@ -581,4 +581,98 @@ router.post('/addUser', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
+// ===== FACULTIES MANAGEMENT =====
+
+router.get('/faculties', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM faculties ORDER BY name');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+router.post('/faculties', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'Faculty name required' });
+    const existing = await pool.query('SELECT id FROM faculties WHERE name = $1', [name]);
+    if (existing.rows.length > 0) return res.status(400).json({ error: 'Faculty already exists' });
+    await pool.query('INSERT INTO faculties (name) VALUES ($1)', [name]);
+    res.json({ message: `Faculty "${name}" added`, success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+router.delete('/faculties/:name', async (req, res) => {
+  try {
+    const { name } = req.params;
+    await pool.query('DELETE FROM faculties WHERE name = $1', [decodeURIComponent(name)]);
+    res.json({ message: 'Faculty deleted', success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+router.put('/faculties/:name/toggle', async (req, res) => {
+  try {
+    const { name } = req.params;
+    const { field } = req.body;
+    const allowed = ['reg_open', 'midterm_visible', 'final_visible', 'summer_visible'];
+    if (!allowed.includes(field)) return res.status(400).json({ error: 'Invalid field' });
+    const decoded = decodeURIComponent(name);
+    const result = await pool.query(`UPDATE faculties SET ${field} = NOT ${field} WHERE name = $1 RETURNING *`, [decoded]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Faculty not found' });
+    res.json({ message: 'Updated', faculty: result.rows[0], success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// ===== UPLOAD RESULTS (with result_type + faculty filtering) =====
+
+router.post('/upload-results', async (req, res) => {
+  try {
+    const { csvData, resultType, faculty } = req.body;
+    if (!csvData) return res.status(400).json({ error: 'CSV data required' });
+    const type = resultType || 'midterm';
+
+    const csv = require('csv-parse/sync');
+    const records = csv.parse(csvData, { columns: true, skip_empty_lines: true, trim: true });
+
+    let uploaded = 0, skipped = 0, errors = [];
+    for (const row of records) {
+      const studentId = row.student_id || row.id;
+      const course = row.course || row.Course;
+      const grade = row.grade || row.Grade;
+      const name = row.name || row.Name || '';
+      const gpa = row.gpa || row.GPA || null;
+      const studentFaculty = row.faculty || row.Faculty || faculty || '';
+
+      if (!studentId || !course || !grade) { skipped++; continue; }
+
+      // If faculty filter is set, skip students not in that faculty
+      if (faculty && studentFaculty && studentFaculty.toLowerCase() !== faculty.toLowerCase()) {
+        skipped++; continue;
+      }
+
+      try {
+        if (name) {
+          const existing = await pool.query('SELECT student_id FROM students WHERE student_id = $1', [studentId]);
+          if (existing.rows.length === 0) {
+            const hash = await bcrypt.hash(studentId.replace('-', ''), 10);
+            await pool.query('INSERT INTO students (student_id, name, password_hash, first_login, gpa, faculty) VALUES ($1, $2, $3, true, $4, $5) ON CONFLICT (student_id) DO UPDATE SET name = $2, gpa = $4',
+              [studentId, name, hash, gpa || null, studentFaculty || null]);
+          } else if (gpa) {
+            await pool.query('UPDATE students SET gpa = $1 WHERE student_id = $2', [gpa, studentId]);
+          }
+        }
+        await pool.query(
+          'INSERT INTO results (student_id, course, grade, result_type) VALUES ($1, $2, $3, $4) ON CONFLICT (student_id, course, result_type) DO UPDATE SET grade = $3',
+          [studentId, course, grade, type]
+        );
+        uploaded++;
+      } catch (e) { errors.push(`Row for ${studentId}: ${e.message}`); }
+    }
+
+    res.json({ message: `Uploaded ${uploaded} ${type} results, skipped ${skipped}`, errors: errors.slice(0, 10) });
+  } catch (err) {
+    console.error('Upload results error:', err);
+    res.status(500).json({ error: 'Failed to process CSV' });
+  }
+});
+
 module.exports = router;

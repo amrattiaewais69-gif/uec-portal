@@ -5,13 +5,21 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Get student results by type
+// Get student results by type (filtered by faculty visibility)
 router.get('/results', authenticateToken, async (req, res) => {
   try {
     const studentId = req.user.id;
     const resultType = req.query.type || 'midterm';
     const studentResult = await pool.query('SELECT student_id, name, gpa, faculty FROM students WHERE student_id = $1', [studentId]);
     if (studentResult.rows.length === 0) return res.status(404).json({ error: 'Student not found' });
+
+    const studentFaculty = studentResult.rows[0].faculty;
+
+    // Check if this result type is visible for the student's faculty
+    const visResult = await pool.query(`SELECT ${resultType}_visible FROM faculties WHERE name = $1`, [studentFaculty]);
+    if (visResult.rows.length === 0 || !visResult.rows[0][`${resultType}_visible`]) {
+      return res.json({ id: studentId, name: studentResult.rows[0].name, faculty: studentFaculty, courses: {}, gpa: '0.00', resultType, hidden: true });
+    }
 
     const coursesResult = await pool.query('SELECT course, grade FROM results WHERE student_id = $1 AND result_type = $2 ORDER BY course', [studentId, resultType]);
     const courses = {};
@@ -20,7 +28,7 @@ router.get('/results', authenticateToken, async (req, res) => {
     const storedGpa = studentResult.rows[0].gpa;
     const gpa = storedGpa !== null ? parseFloat(storedGpa).toFixed(2) : '0.00';
 
-    res.json({ id: studentId, name: studentResult.rows[0].name, faculty: studentResult.rows[0].faculty, courses, gpa, resultType });
+    res.json({ id: studentId, name: studentResult.rows[0].name, faculty: studentFaculty, courses, gpa, resultType });
   } catch (err) {
     console.error('Get results error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -38,12 +46,16 @@ router.get('/photo', authenticateToken, async (req, res) => {
   }
 });
 
-// Get registration open status
+// Get registration open status (per faculty)
 router.get('/reg-status', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query("SELECT value FROM settings WHERE key = 'registration_open'");
-    const open = result.rows.length > 0 ? result.rows[0].value === 'true' : false;
-    res.json({ open });
+    const studentResult = await pool.query('SELECT faculty FROM students WHERE student_id = $1', [req.user.id]);
+    const faculty = studentResult.rows[0]?.faculty;
+    if (!faculty) return res.json({ open: false });
+
+    const result = await pool.query('SELECT reg_open FROM faculties WHERE name = $1', [faculty]);
+    const open = result.rows.length > 0 ? result.rows[0].reg_open : false;
+    res.json({ open, faculty });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }

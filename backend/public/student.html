@@ -127,7 +127,7 @@
 <h3 style="margin:0;border:none;padding:0;">📚 Summer Registration</h3>
 <button class="modal-close" onclick="closeRegistration()">✕ Close</button>
 </div>
-<p id="regClosedMsg" style="text-align:center;display:none;color:#dc3545;font-weight:bold;">🔒 Registration is currently closed. Please check back later.</p>
+<p id="regClosedMsg" style="text-align:center;display:none;color:#dc3545;font-weight:bold;">🔒 Registration is currently closed for your faculty. Please check back later.</p>
 <div id="regTrackerInner" style="display:none;">
 <div class="tracker">
 <div class="tracker-step" id="st-Draft">● Draft Selection</div>
@@ -179,7 +179,7 @@ let studentData=null;
 let selectedCourses=[];
 let currentResultType='midterm';
 let currentResultData=null;
-let regOpen=false;
+let regOpen=false;let studentFaculty='';
 
 if(!token){location.href='login.html';}
 if(localStorage.getItem('portalFirstLogin')==='1'){localStorage.removeItem('portalFirstLogin');document.getElementById('loginBox').style.display='none';document.getElementById('firstLoginBox').style.display='flex';}
@@ -250,7 +250,7 @@ showPhoto('photoBox',data.id,data.name);
 }
 
 async function loadRegistration(){
-try{const regRes=await fetch(API+'/student/reg-status',{headers:{'Authorization':'Bearer '+token}});const regData=await regRes.json();regOpen=regData.open;}catch(e){}
+try{const regRes=await fetch(API+'/student/reg-status',{headers:{'Authorization':'Bearer '+token}});const regData=await regRes.json();regOpen=regData.open;studentFaculty=regData.faculty||'';}catch(e){}
 }
 
 function openRegistration(){
@@ -354,7 +354,7 @@ try{
 const res=await fetch(API+'/student/results?type='+type,{headers:{'Authorization':'Bearer '+token}});
 const data=await res.json();
 const keys=Object.keys(data.courses);
-if(keys.length===0){document.getElementById('resultContent').innerHTML='<div style="text-align:center;padding:30px;"><p style="font-size:16px;color:#999;">No results available for '+titles[type]+' yet.</p><p style="color:#bbb;font-size:13px;">Please check back later.</p></div>';return;}
+if(data.hidden||keys.length===0){const msg=data.hidden?'Results not yet published for your faculty.':'No results available for '+titles[type]+' yet.';document.getElementById('resultContent').innerHTML='<div style="text-align:center;padding:30px;"><p style="font-size:16px;color:#999;">'+msg+'</p><p style="color:#bbb;font-size:13px;">Please check back later.</p></div>';return;}
 currentResultData=data;
 let html='<table class="result-table"><tr><th>Course</th><th>Grade</th></tr>';
 keys.forEach(c=>{html+='<tr><td style="text-align:left;">'+c+'</td><td><b>'+data.courses[c]+'</b></td></tr>';});
