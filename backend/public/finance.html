@@ -284,6 +284,7 @@ const t=document.getElementById('appealHistoryTable');t.innerHTML='<tr><th>Stude
 if(!res.ok)return;const rows=await res.json();
 rows.forEach(r=>{const tr=document.createElement('tr');tr.innerHTML='<td>'+r.student_id+'</td><td>'+r.student_name+'</td><td>'+r.course+'</td><td>'+r.amount+' EGP</td><td>'+r.date+'</td>';t.appendChild(tr);});
 }catch(e){}
+}
 
 function openChangePassword(){document.getElementById('cpModal').classList.add('active');}
 async function changePassword(){const np=document.getElementById('cpNew').value.trim();const cp=document.getElementById('cpConfirm').value.trim();if(!np||!cp||np!==cp){alert('Check passwords');return;}if(np.length<8||!/[A-Z]/.test(np)||!/[a-z]/.test(np)||!/[0-9]/.test(np)||!/[^A-Za-z0-9]/.test(np)){alert('Need: 8+ chars, upper, lower, number, special');return;}const res=await fetch(API+'/auth/account-change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Updated. Login again.');localStorage.clear();location.href='login.html';}else{alert(data.error);}}
