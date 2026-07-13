@@ -101,7 +101,7 @@ router.post('/processPayment', authenticateToken, requireRole('finance'), async 
 });
 
 // Accountant: get student + record appeal payment
-router.get('/student/:id', authenticateToken, requireRole('finance', 'accountant'), async (req, res) => {
+router.get('/student/:id', authenticateToken, requireRole('finance'), async (req, res) => {
   try {
     const { id } = req.params;
     const studentResult = await pool.query('SELECT student_id, name FROM students WHERE student_id = $1', [id]);
@@ -123,7 +123,7 @@ router.get('/student/:id', authenticateToken, requireRole('finance', 'accountant
   }
 });
 
-router.post('/payment', authenticateToken, requireRole('finance', 'accountant'), async (req, res) => {
+router.post('/payment', authenticateToken, requireRole('finance'), async (req, res) => {
   try {
     const { studentId, course, amount } = req.body;
     if (!studentId || !course || !amount) return res.status(400).json({ error: 'Student ID, course, and amount required' });
@@ -143,7 +143,7 @@ router.post('/payment', authenticateToken, requireRole('finance', 'accountant'),
   }
 });
 
-router.get('/payments/export', authenticateToken, requireRole('finance', 'accountant'), async (req, res) => {
+router.get('/payments/export', authenticateToken, requireRole('finance'), async (req, res) => {
   try {
     const result = await pool.query("SELECT student_id, student_name, course, amount, COALESCE(recorded_by, 'Unknown') as recorded_by, TO_CHAR(date, 'YYYY-MM-DD HH24:MI:SS') as date FROM appeal_payments ORDER BY date DESC");
     let csv = '\uFEFFStudent ID,Student Name,Course,Amount,Recorded By,Date\n';

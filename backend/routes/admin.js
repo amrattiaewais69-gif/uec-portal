@@ -70,7 +70,7 @@ router.post('/accounts', async (req, res) => {
   try {
     const { username, password, role, display_name } = req.body;
     if (!username || !password || !role) return res.status(400).json({ error: 'Username, password, and role required' });
-    const validRoles = ['finance', 'accountant', 'control', 'admin'];
+    const validRoles = ['finance', 'control', 'admin'];
     if (!validRoles.includes(role)) return res.status(400).json({ error: 'Invalid role' });
 
     const passwordError = validatePassword(password);
@@ -98,7 +98,7 @@ router.put('/accounts/:username', async (req, res) => {
     }
 
     const targetUsername = newUsername || username;
-    const validRoles = ['finance', 'accountant', 'control', 'admin'];
+    const validRoles = ['finance', 'control', 'admin'];
     if (role) {
       if (!validRoles.includes(role)) return res.status(400).json({ error: 'Invalid role' });
       await pool.query('UPDATE users SET role = $1 WHERE username = $2', [role, targetUsername]);
