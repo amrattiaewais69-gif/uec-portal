@@ -363,12 +363,15 @@ router.get('/export/paid', async (req, res) => {
 router.get('/export/pending-approval', async (req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT r.student_id, s.name, r.total_credits, r.total_fees, r.status, r.supervisor_comments
-      FROM requests r JOIN students s ON r.student_id = s.student_id
+      SELECT r.student_id, s.name, r.total_credits, r.total_fees, r.status, r.supervisor_comments,
+        sup.name as supervisor_name
+      FROM requests r
+      JOIN students s ON r.student_id = s.student_id
+      LEFT JOIN supervisors sup ON s.supervisor_id = sup.supervisor_id
       WHERE r.status = 'Submitted' ORDER BY r.student_id
     `);
-    let csv = '\uFEFFStudent ID,Student Name,Credits,Total Fees,Status,Supervisor Comments\n';
-    rows.forEach(r => { csv += `"${r.student_id}","${r.name}",${r.total_credits},${r.total_fees},"${r.status}","${r.supervisor_comments||''}"\n`; });
+    let csv = '\uFEFFStudent ID,Student Name,Credits,Total Fees,Status,Supervisor,Supervisor Comments\n';
+    rows.forEach(r => { csv += `"${r.student_id}","${r.name}",${r.total_credits},${r.total_fees},"${r.status}","${r.supervisor_name||'N/A'}","${r.supervisor_comments||''}"\n`; });
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename=Pending_Approval.csv');
     res.send(csv);
