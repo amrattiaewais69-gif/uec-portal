@@ -22,7 +22,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com", "https://api.qrserver.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com", "https://api.qrserver.com"],
       styleSrc: ["'self'", "https://fonts.googleapis.com", "'unsafe-inline'"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https://amrattiaewais69-gif.github.io", "https://api.qrserver.com"],
@@ -35,12 +35,13 @@ app.use(helmet({
 const allowedOrigins = [
   process.env.CORS_ORIGIN,
   'portal.uec.edu.eg',
+  'backend-sage-rho-84.vercel.app',
   'http://localhost:3000'
 ].filter(Boolean);
 
 app.use(cors({
   origin: function(origin, callback) {
-    if (!origin) return callback(new Error('No origin header'));
+    if (!origin) return callback(null, true);
     const clean = origin.replace(/^https?:\/\//, '');
     if (allowedOrigins.some(o => clean === o || clean.endsWith('.' + o))) {
       callback(null, true);
