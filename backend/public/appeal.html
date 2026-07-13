@@ -8,8 +8,21 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="card">
-<img src="logo.png" class="logo"><h2>🎓 Submit Appeal</h2>
+<div class="card" style="width:600px;max-width:95%;">
+<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;">
+<img src="logo.png" style="width:50px;">
+<h2 style="margin:0;">🎓 University of East Capital</h2>
+</div>
+<p style="color:#888;margin-bottom:15px;">Submit Appeal</p>
+
+<div style="display:flex;align-items:center;gap:15px;margin-bottom:20px;justify-content:center;">
+<img id="photo" class="studentPhoto" style="width:80px;height:80px;display:none;">
+<div style="text-align:left;">
+<h3 id="studentName" style="margin:0;font-size:16px;"></h3>
+<p id="studentId" style="margin:2px 0;color:#666;font-size:13px;"></p>
+</div>
+</div>
+
 <div id="appealForm">
 <label><b>Select Course</b></label>
 <select id="course" style="width:100%;padding:10px;margin:6px 0;border-radius:6px;border:1px solid #ccc;"></select>
@@ -18,6 +31,7 @@
 <button onclick="submitAppeal()">Submit Appeal</button>
 <button class="logout" onclick="window.location='student.html'">Back to Dashboard</button>
 </div>
+
 <div id="appealHistory" style="margin-top:20px;">
 <h3>Appeal History</h3>
 <table id="historyTable"><tr><th>Course</th><th>Reason</th><th>Status</th><th>Date</th></tr></table>
@@ -25,15 +39,36 @@
 </div>
 <div class="footer">Designed by UEC ICT Department<br>© 2026 University of East Capital</div>
 <script>
-const API=window.location.origin+'/api';const token=localStorage.getItem('portalToken');
+const API=window.location.origin+'/api';
+const token=localStorage.getItem('portalToken');
 if(!token){location.href='login.html';}
+
+const user=JSON.parse(localStorage.getItem('portalUser')||'{}');
+if(user.id){
+document.getElementById('studentName').textContent=user.name||'';
+document.getElementById('studentId').textContent='Student ID: '+(user.id||'');
+const photo=document.getElementById('photo');
+photo.src='https://amrattiaewais69-gif.github.io/student-results/photos/'+user.id+'.jpg';
+photo.style.display='block';
+photo.onerror=function(){this.style.display='none';};
+}
+
 loadAppealData();
+
 async function loadAppealData(){
 try{const res=await fetch(API+'/student/appeal-courses',{headers:{'Authorization':'Bearer '+token}});
-if(res.ok){const data=await res.json();if(data.status==='closed'){document.getElementById('appealForm').innerHTML='<p style="color:red;">'+data.message+'</p>';}else{const sel=document.getElementById('course');data.courses.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});if(data.courses.length===0){sel.innerHTML='<option>No courses available</option>';}}}}catch(e){}
+if(res.ok){const data=await res.json();if(data.status==='closed'){document.getElementById('appealForm').innerHTML='<p style="color:red;">'+data.message+'</p><button class="logout" onclick="window.location=\'student.html\'">Back to Dashboard</button>';}else{const sel=document.getElementById('course');data.courses.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});if(data.courses.length===0){sel.innerHTML='<option>No courses available</option>';}}}}catch(e){}
 try{const res=await fetch(API+'/student/appeals',{headers:{'Authorization':'Bearer '+token}});
 if(res.ok){const appeals=await res.json();const t=document.getElementById('historyTable');appeals.forEach(a=>{const tr=document.createElement('tr');tr.innerHTML='<td></td><td></td><td></td><td></td>';tr.cells[0].textContent=a.course;tr.cells[1].textContent=a.reason;tr.cells[2].textContent=a.status;tr.cells[3].textContent=new Date(a.date).toLocaleDateString();t.appendChild(tr);});}}catch(e){}}
-async function submitAppeal(){const course=document.getElementById('course').value;const reason=document.getElementById('reason').value.trim();if(!course){alert('Select a course');return;}if(!reason){alert('Enter a reason');return;}try{const res=await fetch(API+'/student/appeal',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({course,reason})});const data=await res.json();if(res.ok){alert('Appeal submitted!');loadAppealData();}else{alert(data.error||'Failed');}}catch(e){alert('Error');}}
+
+async function submitAppeal(){
+const course=document.getElementById('course').value;
+const reason=document.getElementById('reason').value.trim();
+if(!course){alert('Select a course');return;}
+if(!reason){alert('Enter a reason');return;}
+try{const res=await fetch(API+'/student/appeal',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({course,reason})});
+const data=await res.json();
+if(res.ok){alert('Appeal submitted!');document.getElementById('reason').value='';loadAppealData();}else{alert(data.error||'Failed');}}catch(e){alert('Error');}}
 </script>
 </body>
 </html>

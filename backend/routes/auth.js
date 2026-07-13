@@ -36,7 +36,7 @@ router.post('/login', async (req, res) => {
 
     res.json({
       token,
-      student: { id: student.student_id, name: student.name, firstLogin: student.first_login }
+      student: { id: student.student_id, name: student.name, firstLogin: student.first_login, faculty: student.faculty }
     });
   } catch (err) {
     console.error('Login error:', err);

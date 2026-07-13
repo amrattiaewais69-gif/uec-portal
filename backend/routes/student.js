@@ -5,23 +5,46 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Get student results
+// Get student results by type
 router.get('/results', authenticateToken, async (req, res) => {
   try {
     const studentId = req.user.id;
-    const studentResult = await pool.query('SELECT student_id, name, gpa FROM students WHERE student_id = $1', [studentId]);
+    const resultType = req.query.type || 'midterm';
+    const studentResult = await pool.query('SELECT student_id, name, gpa, faculty FROM students WHERE student_id = $1', [studentId]);
     if (studentResult.rows.length === 0) return res.status(404).json({ error: 'Student not found' });
 
-    const coursesResult = await pool.query('SELECT course, grade FROM results WHERE student_id = $1 ORDER BY course', [studentId]);
+    const coursesResult = await pool.query('SELECT course, grade FROM results WHERE student_id = $1 AND result_type = $2 ORDER BY course', [studentId, resultType]);
     const courses = {};
     coursesResult.rows.forEach(row => { courses[row.course] = row.grade; });
 
     const storedGpa = studentResult.rows[0].gpa;
     const gpa = storedGpa !== null ? parseFloat(storedGpa).toFixed(2) : '0.00';
 
-    res.json({ id: studentId, name: studentResult.rows[0].name, courses, gpa });
+    res.json({ id: studentId, name: studentResult.rows[0].name, faculty: studentResult.rows[0].faculty, courses, gpa, resultType });
   } catch (err) {
     console.error('Get results error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get student photo
+router.get('/photo', authenticateToken, async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const result = await pool.query('SELECT photo_url FROM students WHERE student_id = $1', [studentId]);
+    res.json({ photoUrl: result.rows[0]?.photo_url || null });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get registration open status
+router.get('/reg-status', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT value FROM settings WHERE key = 'registration_open'");
+    const open = result.rows.length > 0 ? result.rows[0].value === 'true' : false;
+    res.json({ open });
+  } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
 });
