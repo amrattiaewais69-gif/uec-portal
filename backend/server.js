@@ -42,24 +42,29 @@ app.use(cors({
   }
 }));
 
+app.set('trust proxy', 1);
+
 app.use(compression());
 
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
-  message: { error: 'Too many requests, please try again later' }
+  message: { error: 'Too many requests, please try again later' },
+  validate: { xForwardedForHeader: false }
 });
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
-  message: { error: 'Too many login attempts, please try again later' }
+  message: { error: 'Too many login attempts, please try again later' },
+  validate: { xForwardedForHeader: false }
 });
 
 const verifyLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
-  message: { error: 'Too many requests' }
+  message: { error: 'Too many requests' },
+  validate: { xForwardedForHeader: false }
 });
 
 app.use('/api/', generalLimiter);
