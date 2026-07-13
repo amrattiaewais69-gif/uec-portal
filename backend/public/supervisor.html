@@ -4,38 +4,67 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UEC Supervisor Portal</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lato:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="card" id="loginBox">
-<img src="logo.png" class="logo"><h2>🎓 UEC Supervisor Portal</h2>
-<input id="username" placeholder="Supervisor ID"><input id="password" type="password" placeholder="Password">
-<button onclick="login()">Login</button>
+<div class="login-wrapper" id="loginBox">
+<div class="login-box">
+<img src="logo.png" class="logo">
+<h2>UEC Supervisor Portal</h2>
+<p>Academic Supervision</p>
+<input id="username" placeholder="Supervisor ID">
+<input id="password" type="password" placeholder="Password">
+<button class="btn btn-gold" style="width:100%;margin-top:10px;" onclick="login()">Login</button>
 </div>
+</div>
+
 <div class="panel" id="supPanel" style="display:none">
+<div class="header-bar">
+<div class="brand">
+<img src="logo.png">
 <h2>Supervisor Dashboard</h2>
-<p id="loggedUser" style="margin:5px 0;font-size:14px;color:#555;"></p>
-<div class="section"><h3>Student Registration Requests</h3>
-<div class="table-container"><table id="reqTable"><tr><th>Student</th><th>Level</th><th>Credits</th><th>Fees</th><th>Courses</th><th>Failed</th><th>Status</th><th>Comments</th><th>Action</th></tr></table></div></div>
-<button onclick="openChangePassword()">Change Password</button>
-<button class="logout" onclick="logout()">Logout</button>
 </div>
+<p id="loggedUser" style="color:var(--gold);font-size:13px;margin:0;"></p>
+</div>
+
+<div style="padding:25px 30px;">
+
+<div style="margin-bottom:25px;">
+<h3 style="color:var(--navy);font-family:'Playfair Display',serif;margin-bottom:12px;font-size:17px;">Student Registration Requests</h3>
+<div style="overflow-x:auto;"><table id="reqTable"><tr><th>Student</th><th>Level</th><th>Credits</th><th>Fees</th><th>Courses</th><th>Failed</th><th>Status</th><th>Comments</th><th>Action</th></tr></table></div>
+</div>
+
+<div class="footer-bar">
+<button class="btn btn-outline btn-sm" onclick="openChangePassword()">🔑 Change Password</button>
+<button class="btn btn-danger btn-sm" onclick="logout()">🚪 Logout</button>
+</div>
+</div>
+
 <div class="footer">Designed by UEC ICT Department<br>© 2026 University of East Capital</div>
-<div id="cpModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
-<div class="modal"><h3>Change Password</h3>
-<input id="cpNew" type="password" placeholder="New"><input id="cpConfirm" type="password" placeholder="Confirm">
-<p style="font-size:11px;color:#888;">Min 8 chars, upper, lower, number, special</p>
-<div style="text-align:right;margin-top:15px;"><button class="save" onclick="changePassword()">Save</button><button class="cancel" onclick="closeChangePassword()">Cancel</button></div></div></div>
+
+<div class="modal-overlay" id="cpModal">
+<div class="modal-box" style="width:400px;">
+<h3>Change Password</h3>
+<input id="cpNew" type="password" placeholder="New Password" style="width:100%;padding:10px;margin:6px 0;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;">
+<input id="cpConfirm" type="password" placeholder="Confirm Password" style="width:100%;padding:10px;margin:6px 0;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;">
+<p style="font-size:11px;color:#999;">Min 8 chars, uppercase, lowercase, number, special.</p>
+<div style="text-align:right;margin-top:15px;display:flex;gap:8px;justify-content:flex-end;">
+<button class="btn btn-navy btn-sm" onclick="changePassword()">Save</button>
+<button class="btn btn-danger btn-sm" onclick="closeChangePassword()">Cancel</button>
+</div>
+</div>
+</div>
+
 <script>
 const API=window.location.origin+'/api';let token=localStorage.getItem('portalToken');
 if(!token||localStorage.getItem('portalRole')!=='supervisor'){localStorage.clear();location.href='login.html';}
 if(token){document.getElementById('loginBox').style.display='none';document.getElementById('supPanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+(localStorage.getItem('portalDisplayName')||'supervisor');loadDashboard();}
 async function login(){const u=document.getElementById('username').value;const p=document.getElementById('password').value;const res=await fetch(API+'/auth/account-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,loginType:'supervisor'})});const data=await res.json();if(res.ok&&data.role==='supervisor'){token=data.token;localStorage.setItem('portalToken',token);localStorage.setItem('portalRole','supervisor');localStorage.setItem('portalDisplayName',data.displayName);document.getElementById('loginBox').style.display='none';document.getElementById('supPanel').style.display='block';document.getElementById('loggedUser').textContent='Logged in as: '+data.displayName;loadDashboard();}else{alert('Invalid credentials');}}
-async function loadDashboard(){const res=await fetch(API+'/supervisor/dashboard',{headers:{'Authorization':'Bearer '+token}});if(!res.ok)return;const data=await res.json();const t=document.getElementById('reqTable');t.innerHTML='<tr><th>Student</th><th>Level</th><th>Credits</th><th>Fees</th><th>Courses</th><th>Failed</th><th>Status</th><th>Comments</th><th>Action</th></tr>';if(data.requests.length===0){t.innerHTML+='<tr><td colspan="9" style="color:#999;">No requests</td></tr>';return;}data.requests.forEach(r=>{const tr=document.createElement('tr');tr.innerHTML='<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>';tr.cells[0].textContent=r.studentName+' ('+r.studentId+')';tr.cells[1].textContent=r.level||'-';tr.cells[2].textContent=r.totalCredits;tr.cells[3].textContent=r.totalFees;tr.cells[4].textContent=r.courses;tr.cells[5].textContent=r.failedCourses;tr.cells[6].textContent=r.status;tr.cells[7].textContent=r.comments||'-';if(r.status==='Submitted'){const ab=document.createElement('button');ab.textContent='Approve';ab.className='success';ab.onclick=()=>processAction(r.requestId,'Approve');const rb=document.createElement('button');rb.textContent='Reject';rb.className='danger';rb.onclick=()=>processAction(r.requestId,'Reject');const rtb=document.createElement('button');rtb.textContent='Return';rtb.onclick=()=>processAction(r.requestId,'Return');tr.cells[8].appendChild(ab);tr.cells[8].appendChild(rtb);tr.cells[8].appendChild(rb);}t.appendChild(tr);});}
+async function loadDashboard(){const res=await fetch(API+'/supervisor/dashboard',{headers:{'Authorization':'Bearer '+token}});if(!res.ok)return;const data=await res.json();const t=document.getElementById('reqTable');t.innerHTML='<tr><th>Student</th><th>Level</th><th>Credits</th><th>Fees</th><th>Courses</th><th>Failed</th><th>Status</th><th>Comments</th><th>Action</th></tr>';if(data.requests.length===0){t.innerHTML+='<tr><td colspan="9" style="color:#999;">No requests</td></tr>';return;}data.requests.forEach(r=>{const tr=document.createElement('tr');tr.innerHTML='<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>';tr.cells[0].textContent=r.studentName+' ('+r.studentId+')';tr.cells[1].textContent=r.level||'-';tr.cells[2].textContent=r.totalCredits;tr.cells[3].textContent=r.totalFees;tr.cells[4].textContent=r.courses;tr.cells[5].textContent=r.failedCourses;tr.cells[6].textContent=r.status;tr.cells[7].textContent=r.comments||'-';if(r.status==='Submitted'){const ab=document.createElement('button');ab.textContent='Approve';ab.className='btn btn-gold btn-sm';ab.onclick=()=>processAction(r.requestId,'Approve');const rtb=document.createElement('button');rtb.textContent='Return';rtb.className='btn btn-navy btn-sm';rtb.onclick=()=>processAction(r.requestId,'Return');const rb=document.createElement('button');rb.textContent='Reject';rb.className='btn btn-danger btn-sm';rb.onclick=()=>processAction(r.requestId,'Reject');tr.cells[8].appendChild(ab);tr.cells[8].appendChild(rtb);tr.cells[8].appendChild(rb);}t.appendChild(tr);});}
 async function processAction(requestId,action){const comments=prompt('Comments (optional):');const res=await fetch(API+'/supervisor/processAction',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({requestId,action,comments})});const data=await res.json();if(data.message){loadDashboard();}else{alert(data.error||'Failed');}}
-function openChangePassword(){document.getElementById('cpModal').style.display='flex';}
-function closeChangePassword(){document.getElementById('cpModal').style.display='none';}
+function openChangePassword(){document.getElementById('cpModal').classList.add('active');}
+function closeChangePassword(){document.getElementById('cpModal').classList.remove('active');}
 async function changePassword(){const np=document.getElementById('cpNew').value.trim();const cp=document.getElementById('cpConfirm').value.trim();if(!np||!cp||np!==cp){alert('Check passwords');return;}if(np.length<8||!/[A-Z]/.test(np)||!/[a-z]/.test(np)||!/[0-9]/.test(np)||!/[^A-Za-z0-9]/.test(np)){alert('Need: 8+ chars, upper, lower, number, special');return;}const res=await fetch(API+'/auth/account-change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Updated. Login again.');localStorage.clear();location.href='login.html';}else{alert(data.error);}}
 function logout(){localStorage.clear();location.href='login.html';}
 </script>
