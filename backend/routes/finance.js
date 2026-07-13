@@ -34,7 +34,7 @@ router.get('/dashboard', authenticateToken, requireRole('finance'), async (req, 
         faculty: r.faculty || 'General', totalFees: Number(r.total_fees),
         paidAmount: totalPaid, remainingAmount: remaining, status: computedStatus,
         courses: selCourses,
-        paymentsHistory: reqPayments.map(p => ({ amount: Number(p.amount_paid), date: p.payment_date, receiptNo: p.receipt_no, method: p.payment_method, status: p.status }))
+        paymentsHistory: reqPayments.map(p => ({ amount: Number(p.amount_paid), date: p.payment_date, receiptNo: p.receipt_no, method: p.payment_method, status: p.status, referenceNumber: p.reference_number || '' }))
       };
     });
 
