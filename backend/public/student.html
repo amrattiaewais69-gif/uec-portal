@@ -79,11 +79,16 @@
 <h4>Summer Registration</h4>
 <p>Register for summer retake courses</p>
 </div>
-<div class="menu-card" onclick="window.location='appeal.html'">
+<div id="appealCard" class="menu-card" onclick="window.location='appeal.html'">
 <div class="icon">📩</div>
 <h4>Submit Appeal</h4>
-<p>Submit or check appeal status</p>
+<p id="appealCardText">Submit or check appeal status</p>
 </div>
+</div>
+
+<div id="appealClosedBanner" style="display:none;background:#fef2f2;border:1px solid #fecdd3;border-left:4px solid #dc2626;padding:12px 18px;border-radius:8px;margin:0 25px 15px;">
+<p style="color:#dc2626;font-weight:700;margin:0 0 3px;font-size:13px;">📩 Appeals Closed</p>
+<p id="appealClosedMsg" style="color:#991b1b;margin:0;font-size:12px;">The appeal period has ended.</p>
 </div>
 
 <div class="footer-bar">
@@ -234,7 +239,7 @@ if(np.length<8||!/[A-Z]/.test(np)||!/[a-z]/.test(np)||!/[0-9]/.test(np)||!/[^A-Z
 try{const res=await fetch(API+'/auth/change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Password updated. Please login again.');localStorage.clear();location.href='login.html';}else{alert(data.error||'Failed');}}catch(e){alert('Error');}
 }
 
-async function loadAll(){await Promise.all([loadProfile(),loadRegistration()]);}
+async function loadAll(){await Promise.all([loadProfile(),loadRegistration(),loadAppealStatus()]);}
 
 async function loadProfile(){
 try{
@@ -251,6 +256,12 @@ showPhoto('photoBox',data.id,data.name);
 
 async function loadRegistration(){
 try{const regRes=await fetch(API+'/student/reg-status',{headers:{'Authorization':'Bearer '+token}});const regData=await regRes.json();regOpen=regData.open;studentFaculty=regData.faculty||'';}catch(e){}
+}
+
+async function loadAppealStatus(){
+try{const res=await fetch(API+'/student/appeal-status',{headers:{'Authorization':'Bearer '+token}});const data=await res.json();
+if(!data.open){document.getElementById('appealClosedBanner').style.display='block';document.getElementById('appealClosedMsg').textContent=data.message||'The appeal period has ended.';document.getElementById('appealCardText').textContent='Appeals closed';document.getElementById('appealCard').style.opacity='0.5';document.getElementById('appealCard').style.cursor='default';}
+else{document.getElementById('appealClosedBanner').style.display='none';}}catch(e){}
 }
 
 function openRegistration(){

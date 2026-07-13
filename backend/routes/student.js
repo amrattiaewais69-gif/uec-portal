@@ -46,6 +46,21 @@ router.get('/photo', authenticateToken, async (req, res) => {
   }
 });
 
+// Get appeal open status
+router.get('/appeal-status', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT value FROM settings WHERE key = 'appeal_deadline'");
+    if (result.rows.length > 0 && result.rows[0].value) {
+      if (new Date() > new Date(result.rows[0].value)) {
+        return res.json({ open: false, message: 'The appeal deadline has passed.' });
+      }
+    }
+    res.json({ open: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get registration open status (per faculty)
 router.get('/reg-status', authenticateToken, async (req, res) => {
   try {
