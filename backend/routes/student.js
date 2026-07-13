@@ -173,7 +173,7 @@ router.get('/appeal-courses', authenticateToken, async (req, res) => {
       }
     }
     const result = await pool.query(`
-      SELECT p.course FROM appeal_payments p
+      SELECT DISTINCT p.course FROM appeal_payments p
       WHERE p.student_id = $1
       AND NOT EXISTS (SELECT 1 FROM appeals a WHERE a.student_id = $1 AND a.course = p.course AND a.status NOT IN ('Revised without change'))
       ORDER BY p.course
