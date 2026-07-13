@@ -1,4 +1,5 @@
 const express = require('express');
+const { v4: uuidv4 } = require('uuid');
 const pool = require('../config/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 
