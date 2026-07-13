@@ -30,3 +30,13 @@ td{padding:8px;border:1px solid #ddd;text-align:center;}
 .resultCard{cursor:pointer;transition:transform 0.2s,box-shadow 0.2s;text-align:center;}
 .resultCard:hover{transform:translateY(-3px);box-shadow:0 4px 15px rgba(0,0,0,0.15);}
 .resultCard h3{color:#345a9d;}
+.tracker-wrapper{display:flex;justify-content:space-between;margin:15px 0;padding:10px 0;border-bottom:3px solid #e0e0e0;}
+.tracker-step{font-size:11px;color:#aaa;font-weight:600;text-align:center;flex:1;padding:8px 4px;border-radius:6px;transition:all 0.3s;}
+.tracker-step.completed{color:#27ae60;}
+.tracker-step.active{color:#345a9d;background:#e8f0fe;border-bottom:3px solid #345a9d;}
+.reg-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin:15px 0;}
+.reg-profile,.reg-billing{background:#f8f9fa;padding:15px;border-radius:8px;}
+.reg-profile h4,.reg-billing h4,.reg-feedback h4{color:#345a9d;margin-bottom:10px;font-size:14px;}
+.reg-billing{font-size:13px;}
+.reg-feedback{background:#fff3cd;padding:12px 15px;border-radius:8px;border-left:4px solid #ffc107;margin:10px 0;}
+.badge{background:#345a9d;color:white;padding:3px 8px;border-radius:4px;font-size:11px;}

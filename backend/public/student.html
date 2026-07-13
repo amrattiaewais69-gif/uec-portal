@@ -28,21 +28,19 @@
 <div class="card" id="loadingBox" style="display:none"><h3>Loading...</h3></div>
 
 <div class="panel" id="studentPanel" style="display:none">
-<div style="display:flex;align-items:center;justify-content:center;gap:15px;margin-bottom:10px;">
-<img src="logo.png" style="width:60px;">
+<div style="display:flex;align-items:center;justify-content:center;gap:15px;margin-bottom:5px;">
+<img src="logo.png" style="width:55px;">
 <h2 style="margin:0;">University of East Capital</h2>
 </div>
-<p id="loggedUser" style="margin:5px 0;font-size:14px;color:#555;"></p>
-
-<div style="display:flex;align-items:center;gap:20px;margin:15px 0;justify-content:center;">
-<div id="photoBox" class="studentPhoto" style="display:none;"></div>
-<div style="text-align:left;">
-<h3 id="name" style="margin:0;"></h3>
-<p id="sid" style="margin:2px 0;color:#666;"></p>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 15px;">
+<span id="loggedUser" style="font-size:13px;color:#555;"></span>
+<div>
+<button onclick="openChangePassword()" style="padding:6px 12px;font-size:12px;">🔑 Change Password</button>
+<button class="logout" onclick="logout()" style="padding:6px 12px;font-size:12px;">🚪 Logout</button>
 </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin:20px 0;">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin:10px 0;">
 <div class="section resultCard" onclick="viewResult('midterm')">
 <h3>📝 Midterm Results</h3>
 <p style="color:#888;font-size:13px;">View your midterm exam results</p>
@@ -63,14 +61,49 @@
 
 <div class="section" id="regSection">
 <h3>📚 Summer Registration</h3>
-<p id="regStatus" style="text-align:center;"></p>
-<div id="regCourses"></div>
-<button id="regBtn" onclick="submitRegistration()" style="display:none;">Submit Registration</button>
+<p id="regClosedMsg" style="text-align:center;display:none;color:#e74c3c;font-weight:bold;">🔒 Registration is currently closed. Please check back later.</p>
+
+<div id="regTracker" style="display:none;">
+<div class="tracker-wrapper">
+<div class="tracker-step" id="st-Draft">● Draft Selection</div>
+<div class="tracker-step" id="st-Submitted">● Sent to Advisor</div>
+<div class="tracker-step" id="st-Approved">● Layout Approved</div>
+<div class="tracker-step" id="st-PendingPayment">● Financial Pending</div>
+<div class="tracker-step" id="st-Registered">● Registration Confirmed ✓</div>
 </div>
 
-<div style="margin:15px 0;">
-<button onclick="openChangePassword()">🔑 Change Password</button>
-<button class="logout" onclick="logout()">🚪 Logout</button>
+<div class="reg-grid">
+<div class="reg-profile">
+<h4>Student Profile</h4>
+<div style="display:flex;align-items:center;gap:15px;">
+<div id="regPhotoBox" class="studentPhoto" style="width:90px;height:90px;display:none;"></div>
+<div style="font-size:13px;">
+<p><b>ID:</b> <span id="regId">---</span></p>
+<p><b>Name:</b> <span id="regName">---</span></p>
+<p><b>Faculty:</b> <span id="regFaculty">---</span></p>
+<p><b>Level:</b> <span id="regLevel">---</span></p>
+<p><b>Advisor:</b> <span id="regAdvisor">---</span></p>
+</div>
+</div>
+</div>
+<div class="reg-billing">
+<h4>Billing & Credits</h4>
+<p><b>Status:</b> <span id="regStatus" style="font-weight:bold;color:#345a9d;">---</span></p>
+<p><b>Credits:</b> <span id="regCredits">0</span> / 10 Max CH</p>
+<p><b>Fees:</b> <span id="regFees">0</span> EGP</p>
+</div>
+</div>
+
+<div id="advisorFeedback" class="reg-feedback" style="display:none;">
+<h4>Advisor Feedback</h4>
+<p id="advisorFeedbackText"></p>
+</div>
+
+<h4>Eligible Summer Retake Courses</h4>
+<div id="regCourses"></div>
+<div style="text-align:right;margin-top:15px;">
+<button id="regBtn" onclick="submitRegistration()" style="display:none;">Lock Layout & Final Submit</button>
+</div>
 </div>
 </div>
 
@@ -107,6 +140,7 @@ let studentData=null;
 let selectedCourses=[];
 let currentResultType='midterm';
 let currentResultData=null;
+let regOpen=false;
 
 if(!token){location.href='login.html';}
 if(localStorage.getItem('portalFirstLogin')==='1'){localStorage.removeItem('portalFirstLogin');document.getElementById('loginBox').style.display='none';document.getElementById('firstLoginBox').style.display='block';}
@@ -118,6 +152,19 @@ const colors=['#345a9d','#27ae60','#e74c3c','#8e44ad','#e67e22','#16a085','#2c3e
 let h=0;for(let i=0;i<name.length;i++)h=name.charCodeAt(i)+((h<<5)-h);
 const c=colors[Math.abs(h)%colors.length];
 return 'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" rx="60" fill="'+c+'"/><text x="60" y="68" font-family="Arial,sans-serif" font-size="40" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">'+initials+'</text></svg>');
+}
+
+function showPhoto(boxId,studentId,studentName){
+const pb=document.getElementById(boxId);
+if(!pb)return;
+pb.style.display='block';
+pb.innerHTML='';
+const img=new Image();
+img.src='/photos/'+studentId+'.jpg';
+img.style.cssText='width:100%;height:100%;border-radius:50%;object-fit:cover;';
+img.onerror=function(){pb.innerHTML='';pb.style.backgroundImage='url('+makeAvatar(studentName)+')';};
+img.onload=function(){pb.appendChild(img);};
+setTimeout(function(){if(!pb.querySelector('img')){pb.style.backgroundImage='url('+makeAvatar(studentName)+')';}},2000);
 }
 
 async function login(){
@@ -155,7 +202,7 @@ if(res.ok){alert('Password updated. Please login again.');localStorage.clear();l
 }
 
 async function loadAll(){
-await Promise.all([loadProfile(),loadRegStatus()]);
+await Promise.all([loadProfile(),loadRegistration()]);
 }
 
 async function loadProfile(){
@@ -164,71 +211,132 @@ const res=await fetch(API+'/student/results?type=midterm',{headers:{'Authorizati
 if(!res.ok){localStorage.clear();location.href='login.html';return;}
 const data=await res.json();
 currentStudent=data;
-document.getElementById('name').innerText=data.name;
-document.getElementById('sid').innerText='Student ID: '+data.id+' | '+data.faculty;
-
-const pb=document.getElementById('photoBox');
-pb.style.display='block';
-pb.innerHTML='';
-const img=new Image();
-img.src='/photos/'+data.id+'.jpg';
-img.style.cssText='width:100%;height:100%;border-radius:50%;object-fit:cover;';
-img.onerror=function(){pb.innerHTML='';pb.style.backgroundImage='url('+makeAvatar(data.name)+')';};
-img.onload=function(){pb.appendChild(img);};
-setTimeout(function(){if(!pb.querySelector('img')){pb.style.backgroundImage='url('+makeAvatar(data.name)+')';}},2000);
+document.getElementById('loggedUser').textContent=data.name+' | '+data.id+' | '+data.faculty;
+showPhoto('photoBox',data.id,data.name);
 }catch(e){}
 }
 
-async function loadRegStatus(){
+async function loadRegistration(){
 try{
-const res=await fetch(API+'/student/dashboard',{headers:{'Authorization':'Bearer '+token}});
-if(!res.ok)return;
-studentData=await res.json();
-document.getElementById('loggedUser').textContent='Welcome, '+studentData.studentInfo.name+' | '+studentData.studentInfo.faculty;
-
 const regRes=await fetch(API+'/student/reg-status',{headers:{'Authorization':'Bearer '+token}});
 const regData=await regRes.json();
+regOpen=regData.open;
 
-if(!regData.open){
+if(!regOpen){
+document.getElementById('regTracker').style.display='none';
 document.getElementById('regCourses').innerHTML='';
 document.getElementById('regBtn').style.display='none';
-document.getElementById('regStatus').innerHTML='<span style="color:#e74c3c;font-weight:bold;">🔒 Registration is currently closed. Please check back later.</span>';
+document.getElementById('regClosedMsg').style.display='block';
 return;
 }
 
-document.getElementById('regStatus').innerHTML='Status: <b>'+studentData.currentRequest.status+'</b> | Credits: '+studentData.currentRequest.totalCredits+' | Fees: '+studentData.currentRequest.totalFees+' EGP';
+document.getElementById('regClosedMsg').style.display='none';
+document.getElementById('regTracker').style.display='block';
+
+const res=await fetch(API+'/student/dashboard',{headers:{'Authorization':'Bearer '+token}});
+if(!res.ok)return;
+studentData=await res.json();
+
+document.getElementById('regId').textContent=studentData.studentInfo.id;
+document.getElementById('regName').textContent=studentData.studentInfo.name;
+document.getElementById('regFaculty').textContent=studentData.studentInfo.faculty;
+document.getElementById('regLevel').textContent=studentData.studentInfo.level||'---';
+document.getElementById('regAdvisor').textContent=studentData.studentInfo.supervisorName;
+showPhoto('regPhotoBox',studentData.studentInfo.id,studentData.studentInfo.name);
+
+const req=studentData.currentRequest;
+document.getElementById('regStatus').textContent=req.status;
+document.getElementById('regCredits').textContent=req.totalCredits;
+document.getElementById('regFees').textContent=req.totalFees;
+
+evaluateTracker(req.status);
+
+const fb=document.getElementById('advisorFeedback');
+if(req.comments){fb.style.display='block';document.getElementById('advisorFeedbackText').textContent=req.comments;}
+else{fb.style.display='none';}
+
 selectedCourses=studentData.selectedCourses||[];
 const container=document.getElementById('regCourses');
 container.innerHTML='';
 
 if(studentData.courses.length===0){
-container.innerHTML='<p style="color:#999;text-align:center;">No failed courses found for registration</p>';
+container.innerHTML='<p style="color:#999;text-align:center;padding:15px;">No failed courses found for registration</p>';
 document.getElementById('regBtn').style.display='none';
 return;
 }
 
+const isLocked=!['Draft','Returned for Modification'].includes(req.status);
+
+if(isLocked){
+document.getElementById('regBtn').style.display='none';
+}else{
 document.getElementById('regBtn').style.display='inline-block';
-let html='<table><tr><th>Code</th><th>Course</th><th>Credits</th><th>Fee</th><th>Available</th><th>Select</th></tr>';
+}
+
+let html='<table><tr><th>Select</th><th>Code</th><th>Course</th><th>Credits</th><th>Fee/CH</th><th>Total Fee</th><th>Available</th></tr>';
 studentData.courses.forEach(c=>{
-const sel=selectedCourses.includes(c.courseCode);
-html+='<tr><td>'+c.courseCode+'</td><td>'+c.courseName+'</td><td>'+c.creditHours+'</td><td>'+c.feePerCredit*c.creditHours+'</td><td>'+c.availableSeats+'</td><td><input type="checkbox" value="'+c.courseCode+'" '+(sel?'checked':'')+' onchange="toggleCourse(this,\''+c.courseCode+'\')"></td></tr>';
+const isChecked=selectedCourses.includes(c.courseCode);
+const disabled=isLocked||(!isChecked&&c.availableSeats<=0);
+html+='<tr><td><input type="checkbox" value="'+c.courseCode+'" '+(isChecked?'checked':'')+(disabled?' disabled':'')+' data-ch="'+c.creditHours+'" data-cost="'+c.feePerCredit+'" onchange="evalMetrics()"></td>';
+html+='<td><b>'+c.courseCode+'</b></td><td>'+c.courseName+'</td>';
+html+='<td><span class="badge">'+c.creditHours+' CH</span></td>';
+html+='<td>'+c.feePerCredit+' EGP</td>';
+html+='<td>'+(c.feePerCredit*c.creditHours)+' EGP</td>';
+html+='<td>'+c.availableSeats+'</td></tr>';
 });
 html+='</table>';
 container.innerHTML=html;
-}catch(e){}
+evalMetrics();
+}catch(e){console.error('Reg error:',e);}
 }
 
-function toggleCourse(el,code){
-if(el.checked){if(!selectedCourses.includes(code))selectedCourses.push(code);}
-else{selectedCourses=selectedCourses.filter(c=>c!==code);}
+function evaluateTracker(status){
+document.querySelectorAll('.tracker-step').forEach(s=>s.className='tracker-step');
+if(status==='Draft'){document.getElementById('st-Draft').classList.add('active');}
+if(status==='Submitted'||status==='Under Academic Review'){
+document.getElementById('st-Draft').classList.add('completed');
+document.getElementById('st-Submitted').classList.add('active');
+}
+if(status==='Approved by Supervisor'){
+document.getElementById('st-Draft').classList.add('completed');
+document.getElementById('st-Submitted').classList.add('completed');
+document.getElementById('st-Approved').classList.add('active');
+}
+if(status==='Pending Payment'){
+document.getElementById('st-Draft').classList.add('completed');
+document.getElementById('st-Submitted').classList.add('completed');
+document.getElementById('st-Approved').classList.add('completed');
+document.getElementById('st-PendingPayment').classList.add('active');
+}
+if(status==='Registered Successfully'||status==='Payment Confirmed'){
+document.getElementById('st-Draft').classList.add('completed');
+document.getElementById('st-Submitted').classList.add('completed');
+document.getElementById('st-Approved').classList.add('completed');
+document.getElementById('st-PendingPayment').classList.add('completed');
+document.getElementById('st-Registered').classList.add('completed');
+}
+}
+
+function evalMetrics(){
+const checked=document.querySelectorAll('#regCourses input[type="checkbox"]:checked');
+let ch=0,fees=0;
+checked.forEach(b=>{ch+=parseInt(b.getAttribute('data-ch'));fees+=parseInt(b.getAttribute('data-ch'))*parseFloat(b.getAttribute('data-cost'));});
+document.getElementById('regCredits').textContent=ch;
+document.getElementById('regFees').textContent=fees;
+selectedCourses=Array.from(checked).map(b=>b.value);
 }
 
 async function submitRegistration(){
-if(selectedCourses.length===0){alert('Select at least one course');return;}
+const checked=document.querySelectorAll('#regCourses input[type="checkbox"]:checked');
+const courses=Array.from(checked).map(b=>b.value);
+if(courses.length===0){alert('Please select at least one course before submitting.');return;}
+let ch=0;checked.forEach(b=>{ch+=parseInt(b.getAttribute('data-ch'));});
+if(ch>10){alert('Cannot register for more than 10 credit hours.');return;}
+if(!confirm('Once submitted, your course selection will be sent for academic approval and cannot be modified unless returned by your Academic Advisor.'))return;
 try{
-const res=await fetch(API+'/student/submitRegistration',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({courses:selectedCourses})});
+const res=await fetch(API+'/student/submitRegistration',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({courses})});
 const data=await res.json();
-if(res.ok){alert(data.message);loadRegStatus();}else{alert(data.error||'Failed');}
+if(res.ok){alert(data.message);loadRegistration();}else{alert(data.error||'Failed');}
 }catch(e){alert('Error');}
 }
 
@@ -240,27 +348,18 @@ document.getElementById('resultContent').innerHTML='<p style="text-align:center;
 document.getElementById('resultModal').style.display='flex';
 document.getElementById('dlPdfBtn').style.display='none';
 currentResultData=null;
-
 try{
 const res=await fetch(API+'/student/results?type='+type,{headers:{'Authorization':'Bearer '+token}});
 const data=await res.json();
 const keys=Object.keys(data.courses);
-
-if(keys.length===0){
-document.getElementById('resultContent').innerHTML='<div style="text-align:center;padding:30px;"><p style="font-size:18px;color:#999;">No results available for '+titles[type]+' yet.</p><p style="color:#aaa;">Please check back later.</p></div>';
-return;
-}
-
+if(keys.length===0){document.getElementById('resultContent').innerHTML='<div style="text-align:center;padding:30px;"><p style="font-size:18px;color:#999;">No results available for '+titles[type]+' yet.</p></div>';return;}
 currentResultData=data;
 let html='<table style="width:100%;"><tr><th>Course</th><th>Grade</th></tr>';
 keys.forEach(c=>{html+='<tr><td style="text-align:left;">'+c+'</td><td><b>'+data.courses[c]+'</b></td></tr>';});
 html+='<tr style="background:#f0f0f0;"><td style="text-align:left;font-weight:bold;">GPA</td><td><b>'+data.gpa+'</b></td></tr></table>';
-html+='<p style="text-align:center;margin-top:15px;color:#888;">'+titles[type]+'</p>';
 document.getElementById('resultContent').innerHTML=html;
 document.getElementById('dlPdfBtn').style.display='inline-block';
-}catch(e){
-document.getElementById('resultContent').innerHTML='<p style="color:red;text-align:center;">Error loading results</p>';
-}
+}catch(e){document.getElementById('resultContent').innerHTML='<p style="color:red;text-align:center;">Error loading results</p>';}
 }
 
 function closeResult(){document.getElementById('resultModal').style.display='none';}
@@ -271,95 +370,50 @@ const{jsPDF}=window.jspdf;
 const doc=new jsPDF();
 const d=currentResultData;
 const typeLabels={midterm:'Midterm Result-Semester 2',final:'Final Result-Semester 2',summer:'Summer Result'};
-
 try{
 const lr=await fetch('logo.png');
 const lb=await lr.blob();
 const lr2=new FileReader();
 lr2.onloadend=async function(){
 doc.addImage(lr2.result,'PNG',15,10,30,30);
-doc.setFont('helvetica','bold');
-doc.setFontSize(22);
-doc.setTextColor(0,51,102);
+doc.setFont('helvetica','bold');doc.setFontSize(22);doc.setTextColor(0,51,102);
 doc.text('University of East Capital',105,25,{align:'center'});
-doc.setFontSize(16);
-doc.setTextColor(0,0,0);
+doc.setFontSize(16);doc.setTextColor(0,0,0);
 doc.text(typeLabels[currentResultType],105,35,{align:'center'});
-
 let y=48;
-doc.setFontSize(12);
-doc.setFont('helvetica','bold');
+doc.setFontSize(12);doc.setFont('helvetica','bold');
 doc.text('Student Name:',20,y);doc.text(d.name,60,y);
 doc.text('Student ID:',20,y+10);doc.text(d.id,60,y+10);
 doc.text('Faculty:',20,y+20);doc.text(d.faculty||'N/A',60,y+20);
 doc.text('Result Type:',20,y+30);doc.text(typeLabels[currentResultType],60,y+30);
-
-try{
-const pRes=await fetch('/photos/'+d.id+'.jpg');
-if(pRes.ok){
-const pBlob=await pRes.blob();
-const pReader=new FileReader();
-await new Promise(r=>{pReader.onloadend=r;pReader.readAsDataURL(pBlob);});
-doc.addImage(pReader.result,'JPEG',160,y-10,30,35);
-}
-}catch(e){}
-
-const body=[];
-for(const[c,g]of Object.entries(d.courses)){body.push([c,g]);}
-body.push(['GPA',d.gpa]);
-
-doc.autoTable({startY:y+40,head:[['Course','Grade']],body,theme:'grid',
-headStyles:{fillColor:[0,70,140],textColor:255,halign:'center',fontStyle:'bold',fontSize:14},
-bodyStyles:{halign:'center',fontSize:12,cellPadding:3},
-alternateRowStyles:{fillColor:[245,247,250]},
-columnStyles:{0:{cellWidth:130},1:{cellWidth:40}}});
-
+try{const pRes=await fetch('/photos/'+d.id+'.jpg');if(pRes.ok){const pBlob=await pRes.blob();const pReader=new FileReader();await new Promise(r=>{pReader.onloadend=r;pReader.readAsDataURL(pBlob);});doc.addImage(pReader.result,'JPEG',160,y-10,30,35);}}catch(e){}
+const body=[];for(const[c,g]of Object.entries(d.courses)){body.push([c,g]);}body.push(['GPA',d.gpa]);
+doc.autoTable({startY:y+40,head:[['Course','Grade']],body,theme:'grid',headStyles:{fillColor:[0,70,140],textColor:255,halign:'center',fontStyle:'bold',fontSize:14},bodyStyles:{halign:'center',fontSize:12,cellPadding:3},alternateRowStyles:{fillColor:[245,247,250]},columnStyles:{0:{cellWidth:130},1:{cellWidth:40}}});
 let lastY=doc.lastAutoTable.finalY+15;
-
-finishPdf(doc,d.id,lastY);
-};
-lr2.readAsDataURL(lb);
-}catch(e){doc.save('result.pdf');}
-}
-
-function finishPdf(doc,studentId,lastY){
-const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=100x100&data='+encodeURIComponent('https://portal.uec.edu.eg/verify?id='+studentId);
+const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=100x100&data='+encodeURIComponent('https://portal.uec.edu.eg/verify?id='+d.id);
 doc.addImage(qrUrl,'PNG',15,lastY,30,30);
-doc.setFontSize(9);
-doc.setTextColor(100);
-doc.text('Scan to verify result authenticity',30,lastY+35,{align:'center'});
-
-doc.setDrawColor(0,70,140);
-doc.line(130,lastY,195,lastY);
-doc.setFontSize(10);
-doc.setTextColor(0);
-doc.setFont('helvetica','normal');
+doc.setFontSize(9);doc.setTextColor(100);doc.text('Scan to verify result authenticity',30,lastY+35,{align:'center'});
+doc.setDrawColor(0,70,140);doc.line(130,lastY,195,lastY);
+doc.setFontSize(10);doc.setTextColor(0);doc.setFont('helvetica','normal');
 doc.text('Controller of Examinations Unit',162,lastY+6,{align:'center'});
-
-doc.setFontSize(8);
-doc.setTextColor(120);
+doc.setFontSize(8);doc.setTextColor(120);
 doc.text('This document is issued by the University of East Capital (UEC).',105,lastY+14,{align:'center'});
 doc.text('BL = Failed bylaw (Failed in the written Exam)',105,lastY+20,{align:'center'});
-
-doc.save(studentId+'_UEC_'+currentResultType+'_Result.pdf');
+doc.save(d.id+'_UEC_'+currentResultType+'_Result.pdf');
+};lr2.readAsDataURL(lb);
+}catch(e){doc.save('result.pdf');}
 }
 
 function openChangePassword(){document.getElementById('cpModal').style.display='flex';}
 function closeChangePassword(){document.getElementById('cpModal').style.display='none';}
-
 async function changePassword(){
 const np=document.getElementById('cpNew').value.trim();
 const cp=document.getElementById('cpConfirm').value.trim();
 if(!np||!cp){alert('Fill in all fields');return;}
 if(np!==cp){alert('Passwords do not match');return;}
 if(np.length<8||!/[A-Z]/.test(np)||!/[a-z]/.test(np)||!/[0-9]/.test(np)||!/[^A-Za-z0-9]/.test(np)){alert('Password must be 8+ chars with uppercase, lowercase, number, and special character');return;}
-try{
-const res=await fetch(API+'/auth/change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});
-const data=await res.json();
-if(res.ok){alert('Password updated. Login again.');localStorage.clear();location.href='login.html';}else{alert(data.error||'Failed');}
-}catch(e){alert('Error');}
+try{const res=await fetch(API+'/auth/change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Password updated. Login again.');localStorage.clear();location.href='login.html';}else{alert(data.error||'Failed');}}catch(e){alert('Error');}
 }
-
 function logout(){localStorage.clear();location.href='login.html';}
 </script>
 </body>
