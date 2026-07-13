@@ -368,4 +368,161 @@ router.get('/export/unpaid', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
+// Update course seats
+router.post('/updateCourseSeats', async (req, res) => {
+  try {
+    const { courseCode, maxSeats } = req.body;
+    if (!courseCode || maxSeats === undefined) return res.status(400).json({ error: 'courseCode and maxSeats required' });
+    await pool.query('UPDATE courses SET max_seats = $1 WHERE course_code = $2', [maxSeats, courseCode]);
+    res.json({ message: `Updated ${courseCode} max seats to ${maxSeats}`, success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Set student photo
+router.post('/setPhoto', async (req, res) => {
+  try {
+    const { studentId, photoUrl } = req.body;
+    if (!studentId) return res.status(400).json({ error: 'Student ID required' });
+    await pool.query('UPDATE students SET photo_url = $1 WHERE student_id = $2', [photoUrl || null, studentId]);
+    res.json({ message: `Photo updated for ${studentId}`, success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Generic password reset
+router.post('/resetPassword', async (req, res) => {
+  try {
+    const { userId, role, newPassword } = req.body;
+    if (!userId || !role || !newPassword) return res.status(400).json({ error: 'userId, role, and newPassword required' });
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) return res.status(400).json({ error: passwordError });
+    const hash = await bcrypt.hash(newPassword, 10);
+    let result;
+    if (role === 'student') {
+      result = await pool.query('UPDATE students SET password_hash = $1, first_login = true WHERE student_id = $2', [hash, userId]);
+    } else if (role === 'supervisor') {
+      result = await pool.query('UPDATE supervisors SET password_hash = $1 WHERE supervisor_id = $2', [hash, userId]);
+    } else {
+      result = await pool.query('UPDATE users SET password_hash = $1 WHERE username = $2', [hash, userId]);
+    }
+    if (result.rowCount === 0) return res.status(404).json({ error: 'User not found' });
+    await pool.query("INSERT INTO audit_log (log_id, actor, description) VALUES ($1, $2, $3)", [uuidv4(), req.user.username, `Reset password for ${role}: ${userId}`]);
+    res.json({ message: `Password reset for ${userId}`, success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Bulk upload failed courses
+router.post('/bulkFailedCourses', async (req, res) => {
+  try {
+    const { data } = req.body;
+    if (!data || !Array.isArray(data)) return res.status(400).json({ error: 'data array required' });
+    let inserted = 0, skipped = 0;
+    for (const row of data) {
+      const { studentId, courseCode } = row;
+      if (!studentId || !courseCode) { skipped++; continue; }
+      try {
+        const exists = await pool.query('SELECT id FROM failed_courses WHERE student_id = $1 AND course_code = $2', [studentId, courseCode]);
+        if (exists.rows.length > 0) { skipped++; continue; }
+        await pool.query('INSERT INTO failed_courses (student_id, course_code) VALUES ($1, $2) ON CONFLICT DO NOTHING', [studentId, courseCode]);
+        inserted++;
+      } catch (e) { skipped++; }
+    }
+    res.json({ message: `Uploaded ${inserted} failed courses, skipped ${skipped}`, success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Bulk assign supervisors / create students
+router.post('/bulkAssignSupervisors', async (req, res) => {
+  try {
+    const { data } = req.body;
+    if (!data || !Array.isArray(data)) return res.status(400).json({ error: 'data array required' });
+    let created = 0, updated = 0, skipped = 0;
+    for (const row of data) {
+      const { studentId, password, name, email, academicLevel, supervisorId, faculty } = row;
+      if (!studentId || !name) { skipped++; continue; }
+      try {
+        const existing = await pool.query('SELECT student_id FROM students WHERE student_id = $1', [studentId]);
+        if (existing.rows.length > 0) {
+          if (supervisorId) await pool.query('UPDATE students SET supervisor_id = $1 WHERE student_id = $2', [supervisorId, studentId]);
+          updated++;
+        } else {
+          const hash = await bcrypt.hash(password || studentId.replace(/-/g, ''), 10);
+          await pool.query('INSERT INTO students (student_id, name, password_hash, first_login, email, academic_level, supervisor_id, faculty) VALUES ($1,$2,$3,true,$4,$5,$6,$7) ON CONFLICT DO NOTHING',
+            [studentId, name, hash, email || null, academicLevel || null, supervisorId || null, faculty || null]);
+          created++;
+        }
+      } catch (e) { skipped++; }
+    }
+    res.json({ message: `Created ${created}, Updated ${updated}, Skipped ${skipped}`, success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Bulk update courses
+router.post('/bulkUpdateCourses', async (req, res) => {
+  try {
+    const { data } = req.body;
+    if (!data || !Array.isArray(data)) return res.status(400).json({ error: 'data array required' });
+    let created = 0, updated = 0, skipped = 0;
+    for (const row of data) {
+      const { courseCode, courseName, creditHours, maxSeats, feePerCredit, faculty } = row;
+      if (!courseCode) { skipped++; continue; }
+      try {
+        const existing = await pool.query('SELECT course_code FROM courses WHERE course_code = $1', [courseCode]);
+        if (existing.rows.length > 0) {
+          await pool.query('UPDATE courses SET course_name = COALESCE($1,course_name), credit_hours = COALESCE($2,credit_hours), max_seats = COALESCE($3,max_seats), fee_per_credit = COALESCE($4,fee_per_credit), faculty = COALESCE($5,faculty) WHERE course_code = $6',
+            [courseName || null, creditHours ? Number(creditHours) : null, maxSeats ? Number(maxSeats) : null, feePerCredit ? Number(feePerCredit) : null, faculty || null, courseCode]);
+          updated++;
+        } else {
+          await pool.query('INSERT INTO courses (course_code, course_name, credit_hours, max_seats, fee_per_credit, faculty) VALUES ($1,$2,$3,$4,$5,$6)',
+            [courseCode, courseName || courseCode, Number(creditHours) || 3, Number(maxSeats) || 30, Number(feePerCredit) || 0, faculty || 'General']);
+          created++;
+        }
+      } catch (e) { skipped++; }
+    }
+    res.json({ message: `Created ${created}, Updated ${updated}, Skipped ${skipped}`, success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Add single student
+router.post('/addStudent', async (req, res) => {
+  try {
+    const { studentId, name, email, faculty, academicLevel, supervisorId } = req.body;
+    if (!studentId || !name) return res.status(400).json({ error: 'Student ID and Name required' });
+    const existing = await pool.query('SELECT student_id FROM students WHERE student_id = $1', [studentId]);
+    if (existing.rows.length > 0) return res.status(400).json({ error: 'Student ID already exists' });
+    const hash = await bcrypt.hash(studentId.replace(/-/g, ''), 10);
+    await pool.query('INSERT INTO students (student_id, name, password_hash, first_login, email, academic_level, supervisor_id, faculty) VALUES ($1,$2,$3,true,$4,$5,$6,$7)',
+      [studentId, name, hash, email || null, academicLevel || null, supervisorId || null, faculty || null]);
+    res.json({ message: `Student ${studentId} added. Default password: ${studentId}`, success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Add single supervisor
+router.post('/addSupervisor', async (req, res) => {
+  try {
+    const { supervisorId, name, email } = req.body;
+    if (!supervisorId || !name) return res.status(400).json({ error: 'Supervisor ID and Name required' });
+    const existing = await pool.query('SELECT supervisor_id FROM supervisors WHERE supervisor_id = $1', [supervisorId]);
+    if (existing.rows.length > 0) return res.status(400).json({ error: 'Supervisor ID already exists' });
+    const hash = await bcrypt.hash(supervisorId, 10);
+    await pool.query('INSERT INTO supervisors (supervisor_id, name, email, password_hash) VALUES ($1,$2,$3,$4)', [supervisorId, name, email || null, hash]);
+    res.json({ message: `Supervisor ${supervisorId} added. Default password: ${supervisorId}`, success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Add single user (finance/admin)
+router.post('/addUser', async (req, res) => {
+  try {
+    const { username, role, email } = req.body;
+    if (!username || !role) return res.status(400).json({ error: 'Username and role required' });
+    const validRoles = ['finance', 'control', 'admin'];
+    if (!validRoles.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+    const existing = await pool.query('SELECT username FROM users WHERE username = $1', [username]);
+    if (existing.rows.length > 0) return res.status(400).json({ error: 'Username already exists' });
+    const defaultPwd = username + '123';
+    const hash = await bcrypt.hash(defaultPwd, 10);
+    await pool.query('INSERT INTO users (username, password_hash, role, display_name) VALUES ($1,$2,$3,$4)', [username, hash, role, username]);
+    res.json({ message: `User ${username} added. Default password: ${defaultPwd}`, success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
 module.exports = router;
