@@ -53,17 +53,37 @@
 <h3>☀️ Summer Results</h3>
 <p style="color:#888;font-size:13px;">View your summer course results</p>
 </div>
+<div class="section resultCard" onclick="openRegistration()">
+<h3>📚 Summer Registration</h3>
+<p style="color:#888;font-size:13px;">Register for summer retake courses</p>
+</div>
 <div class="section resultCard" onclick="window.location='appeal.html'">
 <h3>📩 Submit Appeal</h3>
 <p style="color:#888;font-size:13px;">Submit or check appeal status</p>
 </div>
 </div>
 
-<div class="section" id="regSection">
-<h3>📚 Summer Registration</h3>
-<p id="regClosedMsg" style="text-align:center;display:none;color:#e74c3c;font-weight:bold;">🔒 Registration is currently closed. Please check back later.</p>
+<div class="footer">Designed by UEC ICT Department<br>© 2026 University of East Capital</div>
 
-<div id="regTracker" style="display:none;">
+<div id="cpModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+<div class="modal">
+<h3>Change Password</h3>
+<input id="cpNew" type="password" placeholder="New Password">
+<input id="cpConfirm" type="password" placeholder="Confirm New Password">
+<p style="font-size:11px;color:#888;">Min 8 chars, uppercase, lowercase, number, special. Example: MyPass@2026</p>
+<div style="text-align:right;margin-top:15px;">
+<button class="save" onclick="changePassword()">Save</button>
+<button class="cancel" onclick="closeChangePassword()">Cancel</button>
+</div></div></div>
+
+<div id="regModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+<div class="modal" style="width:750px;max-height:90vh;overflow-y:auto;">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+<h3 style="margin:0;">📚 Summer Registration</h3>
+<button onclick="closeRegistration()" style="background:#e74c3c;padding:5px 12px;font-size:12px;">✕ Close</button>
+</div>
+<p id="regClosedMsg" style="text-align:center;display:none;color:#e74c3c;font-weight:bold;">🔒 Registration is currently closed. Please check back later.</p>
+<div id="regTrackerInner" style="display:none;">
 <div class="tracker-wrapper">
 <div class="tracker-step" id="st-Draft">● Draft Selection</div>
 <div class="tracker-step" id="st-Submitted">● Sent to Advisor</div>
@@ -71,7 +91,6 @@
 <div class="tracker-step" id="st-PendingPayment">● Financial Pending</div>
 <div class="tracker-step" id="st-Registered">● Registration Confirmed ✓</div>
 </div>
-
 <div class="reg-grid">
 <div class="reg-profile">
 <h4>Student Profile</h4>
@@ -93,32 +112,17 @@
 <p><b>Fees:</b> <span id="regFees">0</span> EGP</p>
 </div>
 </div>
-
 <div id="advisorFeedback" class="reg-feedback" style="display:none;">
 <h4>Advisor Feedback</h4>
 <p id="advisorFeedbackText"></p>
 </div>
-
 <h4>Eligible Summer Retake Courses</h4>
 <div id="regCourses"></div>
 <div style="text-align:right;margin-top:15px;">
 <button id="regBtn" onclick="submitRegistration()" style="display:none;">Lock Layout & Final Submit</button>
 </div>
 </div>
-</div>
-
-<div class="footer">Designed by UEC ICT Department<br>© 2026 University of East Capital</div>
-
-<div id="cpModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
-<div class="modal">
-<h3>Change Password</h3>
-<input id="cpNew" type="password" placeholder="New Password">
-<input id="cpConfirm" type="password" placeholder="Confirm New Password">
-<p style="font-size:11px;color:#888;">Min 8 chars, uppercase, lowercase, number, special. Example: MyPass@2026</p>
-<div style="text-align:right;margin-top:15px;">
-<button class="save" onclick="changePassword()">Save</button>
-<button class="cancel" onclick="closeChangePassword()">Cancel</button>
-</div></div></div>
+</div></div>
 
 <div id="resultModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
 <div class="modal" style="width:600px;max-height:80vh;overflow-y:auto;">
@@ -221,58 +225,49 @@ try{
 const regRes=await fetch(API+'/student/reg-status',{headers:{'Authorization':'Bearer '+token}});
 const regData=await regRes.json();
 regOpen=regData.open;
+}catch(e){}
+}
 
+async function openRegistration(){
+document.getElementById('regModal').style.display='flex';
 if(!regOpen){
-document.getElementById('regTracker').style.display='none';
+document.getElementById('regTrackerInner').style.display='none';
 document.getElementById('regCourses').innerHTML='';
 document.getElementById('regBtn').style.display='none';
 document.getElementById('regClosedMsg').style.display='block';
 return;
 }
-
 document.getElementById('regClosedMsg').style.display='none';
-document.getElementById('regTracker').style.display='block';
-
+document.getElementById('regTrackerInner').style.display='block';
+try{
 const res=await fetch(API+'/student/dashboard',{headers:{'Authorization':'Bearer '+token}});
 if(!res.ok)return;
 studentData=await res.json();
-
 document.getElementById('regId').textContent=studentData.studentInfo.id;
 document.getElementById('regName').textContent=studentData.studentInfo.name;
 document.getElementById('regFaculty').textContent=studentData.studentInfo.faculty;
 document.getElementById('regLevel').textContent=studentData.studentInfo.level||'---';
 document.getElementById('regAdvisor').textContent=studentData.studentInfo.supervisorName;
 showPhoto('regPhotoBox',studentData.studentInfo.id,studentData.studentInfo.name);
-
 const req=studentData.currentRequest;
 document.getElementById('regStatus').textContent=req.status;
 document.getElementById('regCredits').textContent=req.totalCredits;
 document.getElementById('regFees').textContent=req.totalFees;
-
 evaluateTracker(req.status);
-
 const fb=document.getElementById('advisorFeedback');
 if(req.comments){fb.style.display='block';document.getElementById('advisorFeedbackText').textContent=req.comments;}
 else{fb.style.display='none';}
-
 selectedCourses=studentData.selectedCourses||[];
 const container=document.getElementById('regCourses');
 container.innerHTML='';
-
 if(studentData.courses.length===0){
 container.innerHTML='<p style="color:#999;text-align:center;padding:15px;">No failed courses found for registration</p>';
 document.getElementById('regBtn').style.display='none';
 return;
 }
-
 const isLocked=!['Draft','Returned for Modification'].includes(req.status);
-
-if(isLocked){
-document.getElementById('regBtn').style.display='none';
-}else{
-document.getElementById('regBtn').style.display='inline-block';
-}
-
+if(isLocked){document.getElementById('regBtn').style.display='none';}
+else{document.getElementById('regBtn').style.display='inline-block';}
 let html='<table><tr><th>Select</th><th>Code</th><th>Course</th><th>Credits</th><th>Fee/CH</th><th>Total Fee</th><th>Available</th></tr>';
 studentData.courses.forEach(c=>{
 const isChecked=selectedCourses.includes(c.courseCode);
@@ -289,6 +284,8 @@ container.innerHTML=html;
 evalMetrics();
 }catch(e){console.error('Reg error:',e);}
 }
+
+function closeRegistration(){document.getElementById('regModal').style.display='none';}
 
 function evaluateTracker(status){
 document.querySelectorAll('.tracker-step').forEach(s=>s.className='tracker-step');
