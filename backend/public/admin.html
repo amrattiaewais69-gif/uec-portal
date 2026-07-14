@@ -31,6 +31,9 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 #facultiesTable th{background:var(--navy);color:#fff;padding:10px 8px;text-align:center;font-size:12px;font-weight:700;}
 #facultiesTable td{padding:8px;border:1px solid var(--border);text-align:center;}
 #facultiesTable tr:nth-child(even){background:#f8f9fa;}
+.admin-tab{padding:10px 22px;border:none;background:transparent;font-size:14px;font-weight:700;color:var(--gray);cursor:pointer;border-bottom:3px solid transparent;transition:all 0.2s;font-family:'Lato',sans-serif;}
+.admin-tab:hover{color:var(--navy);background:#f8fafc;}
+.admin-tab.active{color:var(--navy);border-bottom:3px solid var(--gold);background:#faf9f6;}
 </style>
 </head>
 <body>
@@ -67,7 +70,18 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 <p id="loggedUser" style="color:var(--gold);font-size:13px;margin:0;"></p>
 </div>
 
-<div style="padding:25px 30px;">
+<div style="padding:0 25px 25px;">
+
+<!-- TAB NAVIGATION -->
+<div style="display:flex;gap:0;border-bottom:2px solid var(--navy);margin-bottom:20px;margin-top:15px;">
+<button class="admin-tab active" onclick="switchAdminTab('dashboard',this)">Dashboard</button>
+<button class="admin-tab" onclick="switchAdminTab('users',this)">Users</button>
+<button class="admin-tab" onclick="switchAdminTab('uploads',this)">Uploads & Data</button>
+<button class="admin-tab" onclick="switchAdminTab('settings',this)">Settings</button>
+</div>
+
+<!-- ========== TAB: DASHBOARD ========== -->
+<div id="tab-dashboard">
 
 <!-- Export Operations -->
 <div style="margin-bottom:20px;">
@@ -115,6 +129,11 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 <span id="courseUpdateResult" class="result"></span>
 </div>
 </details>
+
+</div><!-- /tab-dashboard -->
+
+<!-- ========== TAB: USERS ========== -->
+<div id="tab-users" style="display:none;">
 
 <!-- Password Reset + Photo Management -->
 <div class="admin-grid-2" style="margin-top:20px;">
@@ -191,6 +210,11 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 </div>
 </div>
 
+</div><!-- /tab-users -->
+
+<!-- ========== TAB: UPLOADS & DATA ========== -->
+<div id="tab-uploads" style="display:none;">
+
 <!-- Bulk CSV Uploads -->
 <div class="admin-grid-2" style="margin-top:20px;">
 <div class="admin-card">
@@ -257,6 +281,11 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 <button class="btn btn-gold btn-sm" onclick="uploadResults()">Upload</button>
 </div>
 
+</div><!-- /tab-uploads -->
+
+<!-- ========== TAB: SETTINGS ========== -->
+<div id="tab-settings" style="display:none;">
+
 <!-- Faculty Management -->
 <div class="admin-card" style="margin-top:20px;">
 <h3>Faculty Management</h3>
@@ -283,6 +312,8 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 <span id="appealStatus" style="font-size:14px;font-weight:700;"></span>
 </div>
 </div>
+
+</div><!-- /tab-settings -->
 
 <div class="footer-bar">
 <button class="btn btn-outline btn-sm" onclick="openChangePassword()">Change Password</button>
@@ -886,6 +917,13 @@ const data=await res.json();if(res.ok){alert('Updated. Login again.');localStora
 }
 async function submitFirstLoginPassword(){const np=document.getElementById('flNewPass').value.trim();const cp=document.getElementById('flConfirmPass').value.trim();if(!np||!cp||np!==cp){alert('Check passwords');return;}if(np.length<8||!/[A-Z]/.test(np)||!/[a-z]/.test(np)||!/[0-9]/.test(np)||!/[^A-Za-z0-9]/.test(np)){alert('Need: 8+ chars, upper, lower, number, special');return;}const res=await fetch(API+'/auth/account-change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Password updated. Please login again.');localStorage.clear();location.href='login.html';}else{alert(data.error||'Failed');}}
 function logout(){localStorage.clear();location.href='login.html';}
+
+function switchAdminTab(tab,btn){
+document.querySelectorAll('[id^="tab-"]').forEach(t=>t.style.display='none');
+document.querySelectorAll('.admin-tab').forEach(b=>b.classList.remove('active'));
+document.getElementById('tab-'+tab).style.display='block';
+btn.classList.add('active');
+}
 </script>
 </body>
 </html>
