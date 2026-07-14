@@ -333,7 +333,7 @@ rows.forEach(r=>{const tr=document.createElement('tr');tr.innerHTML='<td><strong
 }catch(e){}
 }
 
-function printAppealReceiptAll(studentId){
+async function printAppealReceiptAll(studentId){
 try{const res=await fetch(API+'/finance/appeal-receipt/'+studentId,{headers:{'Authorization':'Bearer '+token}});
 if(!res.ok){alert('No payments found for this student');return;}
 const data=await res.json();
