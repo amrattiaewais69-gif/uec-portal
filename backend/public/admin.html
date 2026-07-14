@@ -361,7 +361,7 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 <button class="btn btn-navy btn-sm" onclick="printResultsHistory()">Print</button>
 </div>
 <div style="overflow-x:auto;"><table id="histTable" style="width:100%;border-collapse:collapse;font-size:12px;">
-<thead><tr><th style="padding:8px;background:var(--navy);color:#fff;">Photo</th><th style="padding:8px;background:var(--navy);color:#fff;">Student</th><th style="padding:8px;background:var(--navy);color:#fff;">ID</th><th style="padding:8px;background:var(--navy);color:#fff;">Faculty</th><th style="padding:8px;background:var(--navy);color:#fff;">Course</th><th style="padding:8px;background:var(--navy);color:#fff;">Type</th><th style="padding:8px;background:var(--navy);color:#fff;">Midterm</th><th style="padding:8px;background:var(--navy);color:#fff;">CW</th><th style="padding:8px;background:var(--navy);color:#fff;">Final</th><th style="padding:8px;background:var(--navy);color:#fff;">Grade</th><th style="padding:8px;background:var(--navy);color:#fff;">Year</th><th style="padding:8px;background:var(--navy);color:#fff;">Sem</th></tr></thead>
+<thead><tr><th data-col="photo" style="padding:8px;background:var(--navy);color:#fff;">Photo</th><th data-col="name" style="padding:8px;background:var(--navy);color:#fff;">Student</th><th data-col="sid" style="padding:8px;background:var(--navy);color:#fff;">ID</th><th data-col="faculty" style="padding:8px;background:var(--navy);color:#fff;">Faculty</th><th data-col="course" style="padding:8px;background:var(--navy);color:#fff;">Course</th><th data-col="mid" style="padding:8px;background:var(--navy);color:#fff;">Midterm</th><th data-col="cw" style="padding:8px;background:var(--navy);color:#fff;">CW</th><th data-col="final" style="padding:8px;background:var(--navy);color:#fff;">Final</th><th data-col="grade" style="padding:8px;background:var(--navy);color:#fff;">Grade</th><th data-col="year" style="padding:8px;background:var(--navy);color:#fff;">Year</th><th data-col="sem" style="padding:8px;background:var(--navy);color:#fff;">Sem</th></tr></thead>
 <tbody></tbody></table></div>
 <div style="text-align:right;margin-top:10px;"><button class="btn btn-danger btn-sm" onclick="closeResultsHistory()">Close</button></div>
 </div>
@@ -723,41 +723,73 @@ if(type==='summer'&&r.result_type!=='summer')return false;
 return true;
 });
 renderResultsHistory(filtered);
+applyTypeFilter(type);
 }
 function renderResultsHistory(data){
 const tbody=document.querySelector('#histTable tbody');tbody.innerHTML='';
 data.slice(0,200).forEach(r=>{
 const tr=document.createElement('tr');
-tr.innerHTML='<td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;text-align:center;"><img src="/photos/'+r.student_id+'.jpg" onerror="this.src=\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22><rect width=%2232%22 height=%2232%22 fill=%22%23cbd5e1%22/><text x=%2216%22 y=%2220%22 text-anchor=%22middle%22 fill=%22%2364748b%22 font-size=%2212%22>?</text></svg>\'" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid #e2e8f0;"></td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.student_name||'')+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+r.student_id+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.faculty||'')+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+r.course+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.result_type||'')+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.midterm_grade||'-')+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.coursework||'-')+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.final_grade||'-')+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;font-weight:700;">'+(r.grade||'-')+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.year||'')+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.semester||'')+'</td>';
+tr.innerHTML='<td data-col="photo" style="padding:4px 6px;border-bottom:1px solid #e2e8f0;text-align:center;"><img src="/photos/'+r.student_id+'.jpg" onerror="this.src=\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22><rect width=%2232%22 height=%2232%22 fill=%22%23cbd5e1%22/><text x=%2216%22 y=%2220%22 text-anchor=%22middle%22 fill=%22%2364748b%22 font-size=%2212%22>?</text></svg>\'" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid #e2e8f0;"></td><td data-col="name" style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.student_name||'')+'</td><td data-col="sid" style="padding:6px;border-bottom:1px solid #e2e8f0;">'+r.student_id+'</td><td data-col="faculty" style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.faculty||'')+'</td><td data-col="course" style="padding:6px;border-bottom:1px solid #e2e8f0;">'+r.course+'</td><td data-col="mid" style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.midterm_grade||'-')+'</td><td data-col="cw" style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.coursework||'-')+'</td><td data-col="final" style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.final_grade||'-')+'</td><td data-col="grade" style="padding:6px;border-bottom:1px solid #e2e8f0;font-weight:700;">'+(r.grade||'-')+'</td><td data-col="year" style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.year||'')+'</td><td data-col="sem" style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.semester||'')+'</td>';
 tbody.appendChild(tr);
 });
-if(data.length>200){const tr=document.createElement('tr');tr.innerHTML='<td colspan="12" style="padding:8px;color:#999;text-align:center;">Showing 200 of '+data.length+' results</td>';tbody.appendChild(tr);}
+if(data.length>200){const tr=document.createElement('tr');tr.innerHTML='<td colspan="11" style="padding:8px;color:#999;text-align:center;">Showing 200 of '+data.length+' results</td>';tbody.appendChild(tr);}
+}
+function applyTypeFilter(type){
+const table=document.getElementById('histTable');
+const hideCols=[];
+if(type==='midterm'){hideCols.push('cw','final','grade');}
+else if(type==='coursework'){hideCols.push('mid','final','grade');}
+else if(type==='final'){hideCols.push('mid','cw');}
+table.querySelectorAll('th,td').forEach(el=>{
+const col=el.getAttribute('data-col');
+if(hideCols.includes(col)){el.style.display='none';}
+else{el.style.display='';}
+});
 }
 function printResultsHistory(){
 const table=document.getElementById('histTable');
 const faculty=document.getElementById('histFaculty').value;
 const year=document.getElementById('histYear').value;
 const semester=document.getElementById('histSemester').value;
+const type=document.getElementById('histType').value;
 const loggedUser=localStorage.getItem('portalDisplayName')||localStorage.getItem('portalUsername')||'Admin';
 const BASE='https://portal.uec.edu.eg';
 let filters='';
 if(faculty)filters+='Faculty: '+faculty+' &nbsp; ';
 if(year)filters+='Year: '+year+' &nbsp; ';
 if(semester)filters+='Semester: '+semester.charAt(0).toUpperCase()+semester.slice(1)+' &nbsp; ';
+if(type)filters+='Type: '+type.charAt(0).toUpperCase()+type.slice(1)+' &nbsp; ';
+const cols=['photo','name','sid','faculty','course','mid','cw','final','grade','year','sem'];
+const hideCols=[];
+if(type==='midterm')hideCols.push('cw','final','grade');
+else if(type==='coursework')hideCols.push('mid','final','grade');
+else if(type==='final')hideCols.push('mid','cw');
+const visCols=cols.filter(c=>!hideCols.includes(c));
 let printTable='<table style="width:100%;border-collapse:collapse;margin-top:12px;">';
-printTable+='<thead><tr><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:center;">Photo</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:left;">Student</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:left;">ID</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:left;">Faculty</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:left;">Course</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:left;">Type</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:center;">Mid</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:center;">CW</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:center;">Final</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:center;">Grade</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:center;">Year</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:center;">Sem</th></tr></thead><tbody>';
+printTable+='<thead><tr>';
+visCols.forEach(c=>{
+let label=c==='sid'?'ID':c==='sem'?'Sem':c.charAt(0).toUpperCase()+c.slice(1);
+let align=(c==='mid'||c==='cw'||c==='final'||c==='grade'||c==='year'||c==='sem')?'center':'left';
+printTable+='<th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:'+align+';">'+label+'</th>';
+});
+printTable+='</tr></thead><tbody>';
 const rows=table.querySelectorAll('tbody tr');
 rows.forEach(tr=>{
-const cells=tr.querySelectorAll('td');
-if(cells.length>=11){
-const studentId=cells[2]?cells[2].textContent.trim():'';
+const tds=tr.querySelectorAll('td');
+if(tds.length>=10){
 printTable+='<tr>';
+const cellByCol={};
+tds.forEach(td=>{cellByCol[td.getAttribute('data-col')]=td.textContent.trim();});
+const studentId=cellByCol['sid']||'';
+visCols.forEach(c=>{
+if(c==='photo'){
 printTable+='<td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;text-align:center;"><img src="'+BASE+'/photos/'+studentId+'.jpg" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid #ddd;" onerror="this.style.display=\'none\'"></td>';
-for(let i=1;i<cells.length;i++){
-const fw=(i===9)?'font-weight:700;':'';
-const ta=(i>=6&&i<=9)?'text-align:center;':((i>=10)?'text-align:center;':'');
-printTable+='<td style="padding:5px 8px;border-bottom:1px solid #e2e8f0;font-size:10px;'+fw+ta+'">'+cells[i].textContent+'</td>';
+}else{
+const fw=(c==='grade')?'font-weight:700;':'';
+const ta=(c==='mid'||c==='cw'||c==='final'||c==='grade'||c==='year'||c==='sem')?'text-align:center;':'';
+printTable+='<td style="padding:5px 8px;border-bottom:1px solid #e2e8f0;font-size:10px;'+fw+ta+'">'+(cellByCol[c]||'')+'</td>';
 }
+});
 printTable+='</tr>';
 }
 });
