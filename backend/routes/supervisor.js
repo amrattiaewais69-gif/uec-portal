@@ -16,7 +16,7 @@ router.get('/dashboard', authenticateToken, requireRole('supervisor'), async (re
 
     const studentIds = assignedStudents.map(s => s.student_id);
     const { rows: requests } = await pool.query(`
-      SELECT r.*, s.name as student_name, s.academic_level FROM requests r
+      SELECT r.*, s.name as student_name, s.academic_level, s.email as student_email FROM requests r
       JOIN students s ON r.student_id = s.student_id WHERE r.student_id = ANY($1)
     `, [studentIds]);
 
@@ -28,6 +28,7 @@ router.get('/dashboard', authenticateToken, requireRole('supervisor'), async (re
       const failedList = allFailed.filter(f => f.student_id === r.student_id).map(f => `${f.course_name} (${f.course_code})`);
       return {
         requestId: r.request_id, studentId: r.student_id, studentName: r.student_name,
+        studentEmail: r.student_email,
         level: r.academic_level, totalCredits: r.total_credits, totalFees: Number(r.total_fees),
         status: r.status, comments: r.supervisor_comments,
         courses: selCourses.join(', '), failedCourses: failedList.length > 0 ? failedList.join(', ') : 'None'

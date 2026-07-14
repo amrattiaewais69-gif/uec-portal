@@ -172,7 +172,7 @@ actionHtml='<span class="completed-label">Evaluation Completed</span>';
 }
 
 tr.innerHTML=
-'<td><strong>'+r.studentName+'</strong><br><small style="color:#64748b;">ID: '+r.studentId+' | Level: '+(r.level||'-')+'</small></td>'+
+'<td><strong>'+r.studentName+'</strong><br><small style="color:#64748b;">ID: '+r.studentId+' | Level: '+(r.level||'-')+'</small>'+(r.studentEmail?'<br><small style="color:#64748b;">✉ '+r.studentEmail+'</small>':'')+'</td>'+
 '<td>'+coursesHtml+'</td>'+
 '<td><span class="badge-ch">'+r.totalCredits+' CH</span></td>'+
 '<td><span class="status-label '+getStatusClass(r.status)+'">'+r.status+'</span></td>'+

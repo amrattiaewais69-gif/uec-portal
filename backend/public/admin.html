@@ -72,9 +72,11 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 <!-- Export Operations -->
 <div style="margin-bottom:20px;">
 <div class="export-bar">
+<button class="btn btn-gold btn-sm" onclick="openUploadGuide()">Upload Guide</button>
 <button class="btn btn-gold btn-sm" onclick="window.open(API+'/admin/export/paid?token='+token)">Export Paid Students (CSV)</button>
 <button class="btn btn-navy btn-sm" onclick="window.open(API+'/admin/export/pending-approval?token='+token)">Export Awaiting Approval (CSV)</button>
 <button class="btn btn-navy btn-sm" onclick="window.open(API+'/admin/export/unpaid?token='+token)">Export Approved & Unpaid (CSV)</button>
+<button class="btn btn-navy btn-sm" onclick="openResultsHistory()">Results History</button>
 </div>
 </div>
 
@@ -176,6 +178,17 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 <span id="addUserResult" class="result"></span>
 </div>
 </div>
+<div class="admin-card">
+<h3>User Permissions</h3>
+<p style="font-size:12px;color:var(--gray);margin-bottom:8px;">Control which sections each user can access</p>
+<div style="display:flex;flex-direction:column;gap:10px;">
+<select id="permUserSelect" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;" onchange="loadUserPermissions()">
+<option value="">Select User...</option>
+</select>
+<button class="btn btn-gold btn-sm" onclick="openPermModal()">Edit Permissions</button>
+<span id="permStatus" style="font-size:12px;color:var(--gray);"></span>
+</div>
+</div>
 </div>
 
 <!-- Bulk CSV Uploads -->
@@ -224,6 +237,15 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 <option value="final">Final</option>
 <option value="summer">Summer</option>
 </select></div>
+<div><label style="font-weight:700;font-size:12px;display:block;margin-bottom:3px;">Year</label>
+<select id="resultYear" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;">
+</select></div>
+<div><label style="font-weight:700;font-size:12px;display:block;margin-bottom:3px;">Semester</label>
+<select id="resultSemester" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;">
+<option value="fall">Fall</option>
+<option value="spring">Spring</option>
+<option value="summer">Summer</option>
+</select></div>
 <div><label style="font-weight:700;font-size:12px;display:block;margin-bottom:3px;">Faculty Filter</label>
 <select id="resultFaculty" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;">
 <option value="">All Faculties</option>
@@ -270,6 +292,64 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 
 <div class="footer">Designed by UEC ICT Department<br>© 2026 University of East Capital</div>
 
+<div class="modal-overlay" id="uploadGuideModal">
+<div class="modal-box" style="width:650px;max-height:85vh;overflow-y:auto;">
+<h3>Upload Guide — Correct Order</h3>
+<div style="margin:12px 0;">
+<div style="display:flex;gap:12px;margin-bottom:16px;align-items:flex-start;">
+<div style="background:var(--navy);color:#fff;border-radius:50%;min-width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">1</div>
+<div><strong>Courses (CSV)</strong><p style="margin:2px 0 6px;font-size:12px;color:#64748b;">Upload all courses first. Required before students can register.</p>
+<button class="btn btn-navy btn-sm" style="font-size:11px;" onclick="downloadTemplate('courses')">Download Template</button></div></div>
+<div style="display:flex;gap:12px;margin-bottom:16px;align-items:flex-start;">
+<div style="background:var(--navy);color:#fff;border-radius:50%;min-width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">2</div>
+<div><strong>Students + Supervisors (CSV)</strong><p style="margin:2px 0 6px;font-size:12px;color:#64748b;">Create/update students and assign supervisors.</p>
+<button class="btn btn-navy btn-sm" style="font-size:11px;" onclick="downloadTemplate('students')">Download Template</button></div></div>
+<div style="display:flex;gap:12px;margin-bottom:16px;align-items:flex-start;">
+<div style="background:var(--navy);color:#fff;border-radius:50%;min-width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">3</div>
+<div><strong>Failed Courses (CSV)</strong><p style="margin:2px 0 6px;font-size:12px;color:#64748b;">Required! Without this, students see no courses to register for.</p>
+<button class="btn btn-navy btn-sm" style="font-size:11px;" onclick="downloadTemplate('failed')">Download Template</button></div></div>
+<div style="display:flex;gap:12px;margin-bottom:16px;align-items:flex-start;">
+<div style="background:var(--navy);color:#fff;border-radius:50%;min-width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">4</div>
+<div><strong>Results (CSV)</strong><p style="margin:2px 0 6px;font-size:12px;color:#64748b;">Upload midterm/final results. Select type and year/semester before uploading.</p>
+<button class="btn btn-navy btn-sm" style="font-size:11px;" onclick="downloadTemplate('results')">Download Template</button></div></div>
+</div>
+<div style="text-align:right;margin-top:10px;"><button class="btn btn-danger btn-sm" onclick="closeUploadGuide()">Close</button></div>
+</div>
+</div>
+
+<div class="modal-overlay" id="resultsHistoryModal">
+<div class="modal-box" style="width:850px;max-height:85vh;overflow-y:auto;">
+<h3>Results History</h3>
+<div style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap;">
+<input type="text" id="histStudentId" placeholder="Student ID" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;width:140px;" oninput="searchResultsHistory()">
+<input type="text" id="histCourse" placeholder="Course" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;width:120px;" oninput="searchResultsHistory()">
+<select id="histFaculty" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;" onchange="searchResultsHistory()"><option value="">All Faculties</option></select>
+<select id="histYear" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;" onchange="searchResultsHistory()"><option value="">All Years</option></select>
+<select id="histSemester" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;" onchange="searchResultsHistory()"><option value="">All Semesters</option><option value="fall">Fall</option><option value="spring">Spring</option><option value="summer">Summer</option></select>
+<select id="histType" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;" onchange="searchResultsHistory()"><option value="">All Types</option><option value="midterm">Midterm</option><option value="final">Final</option><option value="summer">Summer</option></select>
+<button class="btn btn-navy btn-sm" onclick="printResultsHistory()">Print</button>
+</div>
+<div style="overflow-x:auto;"><table id="histTable" style="width:100%;border-collapse:collapse;font-size:12px;">
+<thead><tr><th style="padding:8px;background:var(--navy);color:#fff;">Photo</th><th style="padding:8px;background:var(--navy);color:#fff;">Student</th><th style="padding:8px;background:var(--navy);color:#fff;">ID</th><th style="padding:8px;background:var(--navy);color:#fff;">Faculty</th><th style="padding:8px;background:var(--navy);color:#fff;">Course</th><th style="padding:8px;background:var(--navy);color:#fff;">Type</th><th style="padding:8px;background:var(--navy);color:#fff;">Midterm</th><th style="padding:8px;background:var(--navy);color:#fff;">CW</th><th style="padding:8px;background:var(--navy);color:#fff;">Final</th><th style="padding:8px;background:var(--navy);color:#fff;">Grade</th><th style="padding:8px;background:var(--navy);color:#fff;">Year</th><th style="padding:8px;background:var(--navy);color:#fff;">Sem</th></tr></thead>
+<tbody></tbody></table></div>
+<div style="text-align:right;margin-top:10px;"><button class="btn btn-danger btn-sm" onclick="closeResultsHistory()">Close</button></div>
+</div>
+</div>
+
+<div class="modal-overlay" id="permModal">
+<div class="modal-box" style="width:520px;max-height:80vh;overflow-y:auto;">
+<h3 id="permModalTitle">Permissions</h3>
+<table style="width:100%;border-collapse:collapse;margin:10px 0;">
+<thead><tr><th style="text-align:left;padding:6px;border-bottom:2px solid var(--border);font-size:12px;">Section</th><th style="text-align:center;padding:6px;border-bottom:2px solid var(--border);font-size:12px;">View</th><th style="text-align:center;padding:6px;border-bottom:2px solid var(--border);font-size:12px;">Add</th><th style="text-align:center;padding:6px;border-bottom:2px solid var(--border);font-size:12px;">Edit</th><th style="text-align:center;padding:6px;border-bottom:2px solid var(--border);font-size:12px;">Delete</th></tr></thead>
+<tbody id="permTableBody"></tbody>
+</table>
+<div style="text-align:right;margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">
+<button class="btn btn-navy btn-sm" onclick="savePermissions()">Save</button>
+<button class="btn btn-danger btn-sm" onclick="closePermModal()">Cancel</button>
+</div>
+</div>
+</div>
+
 <div class="modal-overlay" id="cpModal">
 <div class="modal-box" style="width:400px;">
 <h3>Change Password</h3>
@@ -286,7 +366,7 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 <script>
 const API=window.location.origin+'/api';
 let token=localStorage.getItem('portalToken');
-let csvData=null;let allStudents=[];let allAccounts=[];window._courseStats=[];window._editingCourseCode=null;
+let csvData=null;let allStudents=[];let allAccounts=[];window._courseStats=[];window._editingCourseCode=null;window._myPerms=null;
 
 const savedRole=localStorage.getItem('portalRole');
 if(!token||savedRole!=='admin'){
@@ -324,7 +404,44 @@ const res=await fetch(API+endpoint,opts);
 return res.json();
 }
 
-function initDashboard(){pullMetrics();loadStudentsForPhoto();loadSupervisorsForDropdown();loadAppealSettings();loadFaculties();}
+function initDashboard(){pullMetrics();loadStudentsForPhoto();loadSupervisorsForDropdown();loadAppealSettings();loadFaculties();loadPermUsers();loadMyPermissions();}
+
+async function loadMyPermissions(){
+try{
+const d=await apiCall('/admin/my-permissions');
+window._myPerms=d;
+if(d.fullAdmin)return;
+const p=d.permissions||{};
+const show=(s,a)=>{if(p[s]&&p[s].includes(a))return true;return false;};
+// Export bar = reports.export
+document.querySelectorAll('.export-bar button').forEach(b=>{if(!show('reports','export'))b.style.display='none';});
+// Metrics section (reports.view)
+document.querySelector('[style*="grid-template-columns:repeat(4,1fr)"]')?.closest('div')?.previousElementSibling;
+// Course analytics = courses.view, courses.edit
+if(!show('courses','view')){const el=document.querySelector('details.course-details');if(el)el.style.display='none';}
+if(!show('courses','edit')){document.querySelectorAll('.seat-btn, [onclick*="openCourseEdit"]').forEach(b=>b.style.display='none');}
+// Password reset = accounts.edit
+if(!show('accounts','edit')){const cards=document.querySelectorAll('.admin-card');cards.forEach(c=>{if(c.querySelector('h3')?.textContent==='Password Reset')c.style.display='none';});}
+// Photo management = students.edit
+if(!show('students','edit')){const cards=document.querySelectorAll('.admin-card');cards.forEach(c=>{if(c.querySelector('h3')?.textContent==='Student Photo Management')c.style.display='none';});}
+// Add student = students.add
+if(!show('students','add')){const cards=document.querySelectorAll('.admin-card');cards.forEach(c=>{if(c.querySelector('h3')?.textContent==='Add New Student')c.style.display='none';});}
+// Add supervisor = students.add (supervisors managed under students section)
+if(!show('students','add')){const cards=document.querySelectorAll('.admin-card');cards.forEach(c=>{if(c.querySelector('h3')?.textContent==='Add New Supervisor')c.style.display='none';});}
+// Add user = accounts.add
+if(!show('accounts','add')){const cards=document.querySelectorAll('.admin-card');cards.forEach(c=>{if(c.querySelector('h3')?.textContent==='Add User (Finance / Admin)')c.style.display='none';});}
+// Permissions management = accounts.view
+if(!show('accounts','view')){const cards=document.querySelectorAll('.admin-card');cards.forEach(c=>{if(c.querySelector('h3')?.textContent==='User Permissions')c.style.display='none';});}
+// Bulk CSV = students.add + courses.add
+if(!show('students','add')&&!show('courses','add')){const secs=document.querySelectorAll('details.course-details ~ div');/* skip */document.querySelectorAll('div[style*="margin-top:20px"]').forEach(el=>{const csvH=el.querySelector('h3');if(csvH&&(csvH.textContent.includes('Bulk Upload: Failed')||csvH.textContent.includes('Bulk Upload: Students')||csvH.textContent.includes('Bulk Upload: Courses')))el.style.display='none';});}
+// Upload results = results.upload
+if(!show('results','upload')){document.querySelectorAll('.admin-card').forEach(c=>{if(c.querySelector('h3')?.textContent.includes('Upload Student Results'))c.style.display='none';});}
+// Faculty management = faculties.view
+if(!show('faculties','view')){document.querySelectorAll('.admin-card').forEach(c=>{if(c.querySelector('h3')?.textContent==='Faculty Management')c.style.display='none';});}
+// Appeal settings = settings.view
+if(!show('settings','view')){document.querySelectorAll('.admin-card').forEach(c=>{if(c.querySelector('h3')?.textContent==='Appeal Settings')c.style.display='none';});}
+}catch(e){}
+}
 
 // Metrics
 async function pullMetrics(){
@@ -508,10 +625,140 @@ async function uploadResults(){
 if(!csvData){alert('Select CSV first');return;}
 const resultType=document.getElementById('resultType').value;
 const faculty=document.getElementById('resultFaculty').value;
-const res=await fetch(API+'/admin/upload-results',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({csvData,resultType,faculty:faculty||undefined})});
+const year=document.getElementById('resultYear').value;
+const semester=document.getElementById('resultSemester').value;
+const res=await fetch(API+'/admin/upload-results',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({csvData,resultType,faculty:faculty||undefined,year:year||undefined,semester:semester||undefined})});
 const data=await res.json();
 if(res.ok){alert(data.message+(data.errors.length?'\nErrors: '+data.errors.join('\n'):''));document.getElementById('preview').innerHTML='';document.getElementById('csvFile').value='';csvData=null;}
 else{alert(data.error||'Failed');}
+}
+
+// Year dropdown
+(function(){const sel=document.getElementById('resultYear');const cur=new Date().getFullYear();for(let y=cur;y>=cur-5;y--){sel.innerHTML+='<option value="'+y+'">'+y+'</option>';}})();
+
+// Upload Guide
+function openUploadGuide(){document.getElementById('uploadGuideModal').classList.add('active');}
+function closeUploadGuide(){document.getElementById('uploadGuideModal').classList.remove('active');}
+function downloadTemplate(type){
+const templates={
+courses:'CourseCode,CourseName,CreditHours,MaxSeats,FeePerCredit,Faculty\nINFE401,Foundations of Infections & Infestations,3,30,3500,Medicine\nIMMU401,Foundations of Immunology,3,30,3500,Medicine\nPATH401,Pathology I,3,30,3500,Dentistry',
+students:'StudentID,Password,Name,Email,AcademicLevel,SupervisorID,Faculty\n25100001,,Ahmed Mohamed,ahmed@uec.edu.eg,4th Year,sup001,Medicine\n25100002,,Sara Ali,sara@uec.edu.eg,4th Year,sup001,Medicine',
+failed:'StudentID,CourseCode\n25100001,INFE401\n25100003,IMMU401',
+results:'student_id,name,course,grade,faculty,gpa\n25100001,Ahmed Mohamed,INFE401,A,Medicine,3.7\n25100002,Sara Ali,INFE401,B+,Medicine,3.3'
+};
+const blob=new Blob([templates[type]],{type:'text/csv'});
+const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='UEC_'+type+'_template.csv';a.click();URL.revokeObjectURL(url);
+}
+
+// Results History
+async function openResultsHistory(){
+document.getElementById('resultsHistoryModal').classList.add('active');
+const res=await apiCall('/admin/results-history');
+window._allResults=res;
+populateResultYears(res);
+populateResultFaculties(res);
+renderResultsHistory(res);
+}
+function closeResultsHistory(){document.getElementById('resultsHistoryModal').classList.remove('active');}
+function populateResultYears(data){
+const sel=document.getElementById('histYear');sel.innerHTML='<option value="">All Years</option>';
+const years=[...new Set(data.map(r=>r.year).filter(Boolean))].sort().reverse();
+years.forEach(y=>{sel.innerHTML+='<option value="'+y+'">'+y+'</option>';});
+}
+function populateResultFaculties(data){
+const sel=document.getElementById('histFaculty');sel.innerHTML='<option value="">All Faculties</option>';
+const facs=[...new Set(data.map(r=>r.faculty).filter(Boolean))].sort();
+facs.forEach(f=>{sel.innerHTML+='<option value="'+f+'">'+f+'</option>';});
+}
+function searchResultsHistory(){
+const sid=document.getElementById('histStudentId').value.toLowerCase();
+const course=document.getElementById('histCourse').value.toLowerCase();
+const faculty=document.getElementById('histFaculty').value;
+const year=document.getElementById('histYear').value;
+const sem=document.getElementById('histSemester').value;
+const type=document.getElementById('histType').value;
+let filtered=(window._allResults||[]).filter(r=>{
+if(sid&&!(r.student_id||'').toLowerCase().includes(sid)&&!(r.student_name||'').toLowerCase().includes(sid))return false;
+if(course&&!(r.course||'').toLowerCase().includes(course))return false;
+if(faculty&&r.faculty!==faculty)return false;
+if(year&&r.year!==year)return false;
+if(sem&&r.semester!==sem)return false;
+if(type&&r.result_type!==type)return false;
+return true;
+});
+renderResultsHistory(filtered);
+}
+function renderResultsHistory(data){
+const tbody=document.querySelector('#histTable tbody');tbody.innerHTML='';
+data.slice(0,200).forEach(r=>{
+const tr=document.createElement('tr');
+tr.innerHTML='<td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;text-align:center;"><img src="/photos/'+r.student_id+'.jpg" onerror="this.src=\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22><rect width=%2232%22 height=%2232%22 fill=%22%23cbd5e1%22/><text x=%2216%22 y=%2220%22 text-anchor=%22middle%22 fill=%22%2364748b%22 font-size=%2212%22>?</text></svg>\'" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid #e2e8f0;"></td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.student_name||'')+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+r.student_id+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.faculty||'')+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+r.course+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.result_type||'')+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.midterm_grade||'-')+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.coursework||'-')+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.final_grade||'-')+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;font-weight:700;">'+(r.grade||'-')+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.year||'')+'</td><td style="padding:6px;border-bottom:1px solid #e2e8f0;">'+(r.semester||'')+'</td>';
+tbody.appendChild(tr);
+});
+if(data.length>200){const tr=document.createElement('tr');tr.innerHTML='<td colspan="12" style="padding:8px;color:#999;text-align:center;">Showing 200 of '+data.length+' results</td>';tbody.appendChild(tr);}
+}
+function printResultsHistory(){
+const table=document.getElementById('histTable');
+const faculty=document.getElementById('histFaculty').value;
+const year=document.getElementById('histYear').value;
+const semester=document.getElementById('histSemester').value;
+const loggedUser=localStorage.getItem('portalDisplayName')||localStorage.getItem('portalUsername')||'Admin';
+const BASE='https://portal.uec.edu.eg';
+let filters='';
+if(faculty)filters+='Faculty: '+faculty+' &nbsp; ';
+if(year)filters+='Year: '+year+' &nbsp; ';
+if(semester)filters+='Semester: '+semester.charAt(0).toUpperCase()+semester.slice(1)+' &nbsp; ';
+let printTable='<table style="width:100%;border-collapse:collapse;margin-top:12px;">';
+printTable+='<thead><tr><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:center;">Photo</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:left;">Student</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:left;">ID</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:left;">Faculty</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:left;">Course</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:left;">Type</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:center;">Mid</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:center;">CW</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:center;">Final</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:center;">Grade</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:center;">Year</th><th style="background:#0a1f3c;color:#fff;padding:7px 8px;font-size:10px;text-align:center;">Sem</th></tr></thead><tbody>';
+const rows=table.querySelectorAll('tbody tr');
+rows.forEach(tr=>{
+const cells=tr.querySelectorAll('td');
+if(cells.length>=11){
+const studentId=cells[2]?cells[2].textContent.trim():'';
+printTable+='<tr>';
+printTable+='<td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;text-align:center;"><img src="'+BASE+'/photos/'+studentId+'.jpg" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid #ddd;" onerror="this.style.display=\'none\'"></td>';
+for(let i=1;i<cells.length;i++){
+const fw=(i===9)?'font-weight:700;':'';
+const ta=(i>=6&&i<=9)?'text-align:center;':((i>=10)?'text-align:center;':'');
+printTable+='<td style="padding:5px 8px;border-bottom:1px solid #e2e8f0;font-size:10px;'+fw+ta+'">'+cells[i].textContent+'</td>';
+}
+printTable+='</tr>';
+}
+});
+printTable+='</tbody></table>';
+const w=window.open('','','width=1000,height=750');
+w.document.write('<html><head><title>UEC Results History</title><style>');
+w.document.write('body{font-family:Arial,sans-serif;margin:25px;font-size:12px;color:#1e293b;}');
+w.document.write('.print-header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0a1f3c;padding-bottom:10px;margin-bottom:10px;}');
+w.document.write('.logo-area{display:flex;align-items:center;gap:12px;}');
+w.document.write('.logo-area img{width:60px;height:60px;}');
+w.document.write('.title-area h2{color:#0a1f3c;margin:0 0 2px 0;font-size:18px;}');
+w.document.write('.title-area h3{color:#c5a358;margin:2px 0 0 0;font-size:14px;}');
+w.document.write('.header-right{text-align:right;font-size:11px;color:#64748b;}');
+w.document.write('.filters{background:#f1f5f9;padding:8px 12px;border-radius:6px;margin:10px 0;font-size:11px;color:#475569;border-left:3px solid #c5a358;}');
+w.document.write('.logged-by{margin:10px 0;padding:8px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:11px;color:#166534;}');
+w.document.write('table{width:100%;border-collapse:collapse;margin-top:10px;}');
+w.document.write('th{background:#0a1f3c;color:#fff;padding:6px 8px;font-size:10px;text-align:left;}');
+w.document.write('td{padding:5px 8px;border-bottom:1px solid #e2e8f0;font-size:10px;}');
+w.document.write('tr:nth-child(even){background:#f8fafc;}');
+w.document.write('.print-footer{margin-top:20px;font-size:10px;color:#666;border-top:1px solid #ccc;padding-top:8px;display:flex;justify-content:space-between;}');
+w.document.write('@media print{body{margin:15px;}}');
+w.document.write('</style></head><body>');
+w.document.write('<div class="print-header"><div class="logo-area">');
+w.document.write('<img src="'+BASE+'/logo.png" onerror="this.style.display=\'none\'">');
+w.document.write('<div class="title-area"><h2>University of East Capital</h2><h3>Results History Report</h3></div>');
+w.document.write('</div><div class="header-right">');
+w.document.write('<div style="font-size:14px;font-weight:700;color:#0a1f3c;">UEC</div>');
+w.document.write('<div>portal.uec.edu.eg</div>');
+w.document.write('<div>'+new Date().toLocaleString('en-GB')+'</div>');
+w.document.write('</div></div>');
+if(filters){w.document.write('<div class="filters"><strong>Filters:</strong> '+filters+'</div>');}
+w.document.write('<div class="logged-by">Printed by: <strong>'+loggedUser+'</strong></div>');
+w.document.write(printTable);
+w.document.write('<div class="print-footer"><span>UEC Official — portal.uec.edu.eg</span><span>Total: '+rows.length+' records</span></div>');
+w.document.write('</body></html>');
+w.document.close();
+w.print();
 }
 
 // Appeal Settings
@@ -572,6 +819,46 @@ if(!newName||newName===oldName)return;
 const res=await fetch(API+'/admin/faculties/'+encodeURIComponent(oldName),{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newName})});
 const data=await res.json();
 if(data.success){loadFaculties();}else{alert(data.error||'Failed');}
+}
+
+// Permissions Management
+let _permData={};const _permSections=['students','courses','results','faculties','reports','accounts','settings','appeals'];
+const _permActions=['view','add','edit','delete'];
+async function loadPermUsers(){
+const d=await apiCall('/admin/accounts');const sel=document.getElementById('permUserSelect');sel.innerHTML='<option value="">Select User...</option>';
+d.forEach(u=>{sel.innerHTML+='<option value="'+u.username+'">'+u.username+' ('+u.role+')</option>';});
+}
+async function loadUserPermissions(){
+const username=document.getElementById('permUserSelect').value;const el=document.getElementById('permStatus');
+if(!username){el.textContent='';_permData={};return;}
+try{
+const d=await apiCall('/admin/permissions/'+username);
+_permData=d.permissions||{};
+el.textContent='Current: '+Object.entries(_permData).map(([k,v])=>k+':'+v.join(',')).join(' | ');
+}catch(e){el.textContent='Error loading';}
+}
+function openPermModal(){
+const username=document.getElementById('permUserSelect').value;if(!username){alert('Select a user first');return;}
+document.getElementById('permModalTitle').textContent='Permissions: '+username;
+const tbody=document.getElementById('permTableBody');tbody.innerHTML='';
+_permSections.forEach(section=>{
+const tr=document.createElement('tr');
+const perms=_permData[section]||[];
+tr.innerHTML='<td style="padding:6px;border-bottom:1px solid var(--border);font-weight:600;font-size:13px;">'+section.charAt(0).toUpperCase()+section.slice(1)+'</td>'+
+_permActions.map(a=>'<td style="text-align:center;padding:6px;border-bottom:1px solid var(--border);"><input type="checkbox" data-section="'+section+'" data-action="'+a+'" '+(perms.includes(a)?'checked':'')+'></td>').join('');
+tbody.appendChild(tr);
+});
+document.getElementById('permModal').classList.add('active');
+}
+function closePermModal(){document.getElementById('permModal').classList.remove('active');}
+async function savePermissions(){
+const username=document.getElementById('permUserSelect').value;if(!username)return;
+const checkboxes=document.querySelectorAll('#permTableBody input[type=checkbox]');
+const permissions={};
+_permSections.forEach(s=>{permissions[s]=[];});
+checkboxes.forEach(cb=>{if(cb.checked){const s=cb.getAttribute('data-section');const a=cb.getAttribute('data-action');if(permissions[s])permissions[s].push(a);}});
+const r=await apiCall('/admin/permissions/'+username,'PUT',{permissions});
+if(r.success){closePermModal();loadUserPermissions();alert('Permissions saved for '+username);}else{alert(r.error||'Failed');}
 }
 
 function openChangePassword(){document.getElementById('cpModal').classList.add('active');}

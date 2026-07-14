@@ -9,26 +9,41 @@ const router = express.Router();
 router.get('/results', authenticateToken, async (req, res) => {
   try {
     const studentId = req.user.id;
-    const resultType = req.query.type || 'midterm';
+    const resultType = req.query.type;
+    const year = req.query.year;
+    const semester = req.query.semester;
     const studentResult = await pool.query('SELECT student_id, name, gpa, faculty FROM students WHERE student_id = $1', [studentId]);
     if (studentResult.rows.length === 0) return res.status(404).json({ error: 'Student not found' });
 
     const studentFaculty = studentResult.rows[0].faculty;
 
-    // Check if this result type is visible for the student's faculty
-    const visResult = await pool.query(`SELECT ${resultType}_visible FROM faculties WHERE name = $1`, [studentFaculty]);
-    if (visResult.rows.length === 0 || !visResult.rows[0][`${resultType}_visible`]) {
-      return res.json({ id: studentId, name: studentResult.rows[0].name, faculty: studentFaculty, courses: {}, gpa: '0.00', resultType, hidden: true });
+    // Check visibility for the requested type (if specified)
+    if (resultType) {
+      const visResult = await pool.query(`SELECT ${resultType}_visible FROM faculties WHERE name = $1`, [studentFaculty]);
+      if (visResult.rows.length === 0 || !visResult.rows[0][`${resultType}_visible`]) {
+        return res.json({ id: studentId, name: studentResult.rows[0].name, faculty: studentFaculty, courses: {}, gpa: '0.00', resultType, hidden: true });
+      }
     }
 
-    const coursesResult = await pool.query('SELECT course, grade FROM results WHERE student_id = $1 AND result_type = $2 ORDER BY course', [studentId, resultType]);
+    let query = 'SELECT course, grade, year, semester, midterm_grade, final_grade, coursework, result_type FROM results WHERE student_id = $1';
+    const params = [studentId];
+    let idx = 2;
+    if (resultType) { query += ` AND result_type = $${idx++}`; params.push(resultType); }
+    if (year) { query += ` AND year = $${idx++}`; params.push(year); }
+    if (semester) { query += ` AND semester = $${idx++}`; params.push(semester); }
+    query += ' ORDER BY course';
+    const coursesResult = await pool.query(query, params);
     const courses = {};
     coursesResult.rows.forEach(row => { courses[row.course] = row.grade; });
 
     const storedGpa = studentResult.rows[0].gpa;
     const gpa = storedGpa !== null ? parseFloat(storedGpa).toFixed(2) : '0.00';
 
-    res.json({ id: studentId, name: studentResult.rows[0].name, faculty: studentFaculty, courses, gpa, resultType });
+    // Get available years/semesters for this student
+    const periodsResult = await pool.query('SELECT DISTINCT year, semester FROM results WHERE student_id = $1 ORDER BY year DESC, semester DESC', [studentId]);
+    const periods = periodsResult.rows;
+
+    res.json({ id: studentId, name: studentResult.rows[0].name, faculty: studentFaculty, courses, gpa, resultType: resultType || 'all', periods, detailedResults: coursesResult.rows });
   } catch (err) {
     console.error('Get results error:', err);
     res.status(500).json({ error: 'Server error' });

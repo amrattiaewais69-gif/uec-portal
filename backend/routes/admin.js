@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../config/database');
-const { authenticateToken, requireRole } = require('../middleware/auth');
+const { authenticateToken, requireRole, checkPermission } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -18,10 +18,13 @@ function validatePassword(password) {
 router.use(authenticateToken, requireRole('admin'));
 
 // Upload results CSV
-router.post('/upload-results', async (req, res) => {
+router.post('/upload-results', checkPermission('results', 'upload'), async (req, res) => {
   try {
-    const { csvData } = req.body;
+    const { csvData, resultType, faculty, year, semester } = req.body;
     if (!csvData) return res.status(400).json({ error: 'CSV data required' });
+    const type = resultType || 'midterm';
+    const yr = year || new Date().getFullYear().toString();
+    const sem = semester || 'fall';
 
     const csv = require('csv-parse/sync');
     const records = csv.parse(csvData, { columns: true, skip_empty_lines: true, trim: true });
@@ -33,40 +36,162 @@ router.post('/upload-results', async (req, res) => {
       const grade = row.grade || row.Grade;
       const name = row.name || row.Name || '';
       const gpa = row.gpa || row.GPA || null;
+      const studentFaculty = row.faculty || row.Faculty || faculty || '';
 
       if (!studentId || !course || !grade) { skipped++; continue; }
+      if (faculty && studentFaculty && studentFaculty.toLowerCase() !== faculty.toLowerCase()) { skipped++; continue; }
 
       try {
         if (name) {
           const existing = await pool.query('SELECT student_id FROM students WHERE student_id = $1', [studentId]);
           if (existing.rows.length === 0) {
             const hash = await bcrypt.hash(studentId.replace('-', ''), 10);
-            await pool.query('INSERT INTO students (student_id, name, password_hash, first_login, gpa) VALUES ($1, $2, $3, true, $4) ON CONFLICT (student_id) DO UPDATE SET name = $2, gpa = $4', [studentId, name, hash, gpa || null]);
+            await pool.query('INSERT INTO students (student_id, name, password_hash, first_login, gpa, faculty) VALUES ($1, $2, $3, true, $4, $5) ON CONFLICT (student_id) DO UPDATE SET name = $2, gpa = $4',
+              [studentId, name, hash, gpa || null, studentFaculty || null]);
           } else if (gpa) {
             await pool.query('UPDATE students SET gpa = $1 WHERE student_id = $2', [gpa, studentId]);
           }
         }
-        await pool.query('INSERT INTO results (student_id, course, grade) VALUES ($1, $2, $3) ON CONFLICT (student_id, course) DO UPDATE SET grade = $3', [studentId, course, grade]);
+
+        if (type === 'midterm') {
+          await pool.query(
+            'INSERT INTO results (student_id, course, grade, result_type, year, semester, midterm_grade, faculty) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (student_id, course, result_type, year, semester) DO UPDATE SET grade = $3, midterm_grade = $7',
+            [studentId, course, grade, type, yr, sem, grade, studentFaculty || null]
+          );
+        } else if (type === 'final') {
+          await pool.query(
+            'INSERT INTO results (student_id, course, grade, result_type, year, semester, final_grade, faculty) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (student_id, course, result_type, year, semester) DO UPDATE SET grade = $3, final_grade = $7',
+            [studentId, course, grade, type, yr, sem, grade, studentFaculty || null]
+          );
+        } else {
+          await pool.query(
+            'INSERT INTO results (student_id, course, grade, result_type, year, semester, faculty) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (student_id, course, result_type, year, semester) DO UPDATE SET grade = $3',
+            [studentId, course, grade, type, yr, sem, studentFaculty || null]
+          );
+        }
         uploaded++;
       } catch (e) { errors.push(`Row for ${studentId}: ${e.message}`); }
     }
 
-    res.json({ message: `Uploaded ${uploaded} results, skipped ${skipped}`, errors: errors.slice(0, 10) });
+    res.json({ message: `Uploaded ${uploaded} ${type} results, skipped ${skipped}`, errors: errors.slice(0, 10) });
   } catch (err) {
     console.error('Upload results error:', err);
     res.status(500).json({ error: 'Failed to process CSV' });
   }
 });
 
+// Results History
+router.get('/results-history', checkPermission('results', 'view'), async (req, res) => {
+  try {
+    const { student_id, year, semester, course, faculty } = req.query;
+    let query = 'SELECT r.*, s.name as student_name FROM results r LEFT JOIN students s ON r.student_id = s.student_id WHERE 1=1';
+    const params = [];
+    let idx = 1;
+    if (student_id) { query += ` AND r.student_id = $${idx++}`; params.push(student_id); }
+    if (year) { query += ` AND r.year = $${idx++}`; params.push(year); }
+    if (semester) { query += ` AND r.semester = $${idx++}`; params.push(semester); }
+    if (course) { query += ` AND r.course ILIKE $${idx++}`; params.push('%' + course + '%'); }
+    if (faculty) { query += ` AND r.faculty = $${idx++}`; params.push(faculty); }
+    query += ' ORDER BY r.year DESC, r.semester DESC, r.student_id';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Results History Summary (per student)
+router.get('/results-student/:id', checkPermission('results', 'view'), async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT r.*, s.name as student_name FROM results r LEFT JOIN students s ON r.student_id = s.student_id WHERE r.student_id = $1 ORDER BY r.year DESC, r.semester DESC, r.course',
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Single result update (for control page inline editing)
+router.put('/results/update', checkPermission('results', 'upload'), async (req, res) => {
+  try {
+    const { studentId, course, year, semester, midtermGrade, finalGrade, coursework, faculty } = req.body;
+    if (!studentId || !course || !year || !semester) return res.status(400).json({ error: 'studentId, course, year, semester required' });
+
+    // Calculate final grade
+    let calculatedGrade = null;
+    if (midtermGrade && finalGrade) {
+      const mg = parseFloat(midtermGrade), fg = parseFloat(finalGrade), cw = parseFloat(coursework) || 0;
+      if (!isNaN(mg) && !isNaN(fg)) {
+        const total = mg * 0.3 + cw * 0.1 + fg * 0.6;
+        calculatedGrade = total.toFixed(1);
+      }
+    }
+
+    await pool.query(
+      `INSERT INTO results (student_id, course, grade, result_type, year, semester, midterm_grade, final_grade, coursework, faculty)
+       VALUES ($1,$2,$3,'final',$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (student_id, course, result_type, year, semester)
+       DO UPDATE SET midterm_grade = $6, final_grade = $7, coursework = $8, grade = $3, faculty = $9`,
+      [studentId, course, calculatedGrade, year, semester, midtermGrade || null, finalGrade || null, coursework || null, faculty || null]
+    );
+    res.json({ message: 'Result saved', calculatedGrade, success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// Get courses for a specific student + year + semester
+router.get('/results-student-courses/:id', checkPermission('results', 'view'), async (req, res) => {
+  try {
+    const { year, semester } = req.query;
+    const studentId = req.params.id;
+    // Get student's faculty
+    const stuRes = await pool.query('SELECT faculty FROM students WHERE student_id = $1', [studentId]);
+    const faculty = stuRes.rows[0]?.faculty;
+    // Get registered courses for this student
+    const regRes = await pool.query(
+      `SELECT DISTINCT cs.course_code FROM course_selections cs
+       JOIN requests r ON cs.request_id = r.request_id
+       WHERE cs.student_id = $1 AND r.status NOT IN ('Rejected','Returned for Modification')`,
+      [studentId]
+    );
+    const courseCodes = regRes.rows.map(r => r.course_code);
+    if (courseCodes.length === 0) return res.json([]);
+
+    // Get existing results
+    let resultQuery = 'SELECT * FROM results WHERE student_id = $1 AND course = ANY($2)';
+    const params = [studentId, courseCodes];
+    let idx = 3;
+    if (year) { resultQuery += ` AND year = $${idx++}`; params.push(year); }
+    if (semester) { resultQuery += ` AND semester = $${idx++}`; params.push(semester); }
+    const results = await pool.query(resultQuery, params);
+
+    // Get course names
+    const coursesRes = await pool.query('SELECT course_code, course_name FROM courses WHERE course_code = ANY($1)', [courseCodes]);
+    const nameMap = {};
+    coursesRes.rows.forEach(c => { nameMap[c.course_code] = c.course_name; });
+
+    const merged = courseCodes.map(code => {
+      const existing = results.rows.find(r => r.course === code);
+      return {
+        courseCode: code,
+        courseName: nameMap[code] || code,
+        midterm: existing?.midterm_grade || '',
+        final: existing?.final_grade || '',
+        coursework: existing?.coursework || '',
+        grade: existing?.grade || '',
+        faculty: faculty || ''
+      };
+    });
+    res.json(merged);
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
 // Accounts CRUD
-router.get('/accounts', async (req, res) => {
+router.get('/accounts', checkPermission('accounts', 'view'), async (req, res) => {
   try {
     const result = await pool.query('SELECT username, role, display_name FROM users ORDER BY role, username');
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/accounts', async (req, res) => {
+router.post('/accounts', checkPermission('accounts', 'add'), async (req, res) => {
   try {
     const { username, password, role, display_name } = req.body;
     if (!username || !role) return res.status(400).json({ error: 'Username and role required' });
@@ -86,7 +211,7 @@ router.post('/accounts', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.put('/accounts/:username', async (req, res) => {
+router.put('/accounts/:username', checkPermission('accounts', 'edit'), async (req, res) => {
   try {
     const { username } = req.params;
     const { newUsername, role, display_name } = req.body;
@@ -111,7 +236,7 @@ router.put('/accounts/:username', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.delete('/accounts/:username', async (req, res) => {
+router.delete('/accounts/:username', checkPermission('accounts', 'delete'), async (req, res) => {
   try {
     const { username } = req.params;
     await pool.query('DELETE FROM users WHERE username = $1', [username]);
@@ -121,7 +246,7 @@ router.delete('/accounts/:username', async (req, res) => {
 });
 
 // Password resets
-router.put('/accounts/:username/reset-password', async (req, res) => {
+router.put('/accounts/:username/reset-password', checkPermission('accounts', 'edit'), async (req, res) => {
   try {
     const { username } = req.params;
     const { newPassword } = req.body;
@@ -136,7 +261,7 @@ router.put('/accounts/:username/reset-password', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.put('/students/:id/reset-password', async (req, res) => {
+router.put('/students/:id/reset-password', checkPermission('students', 'edit'), async (req, res) => {
   try {
     const { id } = req.params;
     const { newPassword } = req.body;
@@ -150,7 +275,7 @@ router.put('/students/:id/reset-password', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.put('/students/reset-all', async (req, res) => {
+router.put('/students/reset-all', checkPermission('students', 'edit'), async (req, res) => {
   try {
     const students = await pool.query('SELECT student_id FROM students');
     let count = 0;
@@ -165,18 +290,18 @@ router.put('/students/reset-all', async (req, res) => {
 });
 
 // Students
-router.get('/students', async (req, res) => {
+router.get('/students', checkPermission('students', 'view'), async (req, res) => {
   try {
     const result = await pool.query('SELECT student_id, name, first_login, faculty, academic_level, supervisor_id FROM students ORDER BY student_id');
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.put('/students/:id', async (req, res) => {
+router.put('/students/:id', checkPermission('students', 'edit'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, newId } = req.body;
-    if (!name && !newId) return res.status(400).json({ error: 'Nothing to update' });
+    const { name, newId, email } = req.body;
+    if (!name && !newId && !email) return res.status(400).json({ error: 'Nothing to update' });
 
     if (newId && newId !== id) {
       const existing = await pool.query('SELECT student_id FROM students WHERE student_id = $1', [newId]);
@@ -199,12 +324,13 @@ router.put('/students/:id', async (req, res) => {
 
     const targetId = newId || id;
     if (name) await pool.query('UPDATE students SET name = $1 WHERE student_id = $2', [name, targetId]);
+    if (email) await pool.query('UPDATE students SET email = $1 WHERE student_id = $2', [email, targetId]);
     res.json({ message: 'Student updated successfully' });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
 // Settings
-router.get('/settings', async (req, res) => {
+router.get('/settings', checkPermission('settings', 'view'), async (req, res) => {
   try {
     const result = await pool.query("SELECT key, value FROM settings WHERE key IN ('appeals_open', 'appeal_deadline')");
     const settings = {};
@@ -213,7 +339,7 @@ router.get('/settings', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.put('/settings', async (req, res) => {
+router.put('/settings', checkPermission('settings', 'edit'), async (req, res) => {
   try {
     const { appeal_deadline } = req.body;
     if (appeal_deadline !== undefined) {
@@ -224,14 +350,14 @@ router.put('/settings', async (req, res) => {
 });
 
 // Supervisor management
-router.get('/supervisors', async (req, res) => {
+router.get('/supervisors', checkPermission('students', 'view'), async (req, res) => {
   try {
     const result = await pool.query('SELECT supervisor_id, name, email FROM supervisors ORDER BY supervisor_id');
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/supervisors', async (req, res) => {
+router.post('/supervisors', checkPermission('students', 'add'), async (req, res) => {
   try {
     const { supervisorId, name, email } = req.body;
     if (!supervisorId || !name) return res.status(400).json({ error: 'Supervisor ID and name required' });
@@ -244,14 +370,14 @@ router.post('/supervisors', async (req, res) => {
 });
 
 // Course management
-router.get('/courses', async (req, res) => {
+router.get('/courses', checkPermission('courses', 'view'), async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM courses ORDER BY course_code');
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/courses', async (req, res) => {
+router.post('/courses', checkPermission('courses', 'add'), async (req, res) => {
   try {
     const { courseCode, courseName, creditHours, maxSeats, feePerCredit, faculty } = req.body;
     if (!courseCode || !courseName) return res.status(400).json({ error: 'Course code and name required' });
@@ -263,7 +389,7 @@ router.post('/courses', async (req, res) => {
 });
 
 // Clear all
-router.delete('/clear-all', async (req, res) => {
+router.delete('/clear-all', checkPermission('students', 'delete'), async (req, res) => {
   try {
     const client = await pool.connect();
     try {
@@ -285,7 +411,7 @@ router.delete('/clear-all', async (req, res) => {
 });
 
 // Dashboard metrics
-router.get('/metrics', async (req, res) => {
+router.get('/metrics', checkPermission('reports', 'view'), async (req, res) => {
   try {
     const { rows: enrolled } = await pool.query("SELECT COUNT(*)::int as cnt FROM requests WHERE status = 'Registered Successfully'");
     const { rows: pendingApproval } = await pool.query("SELECT COUNT(*)::int as cnt FROM requests WHERE status = 'Submitted'");
@@ -301,7 +427,7 @@ router.get('/metrics', async (req, res) => {
 });
 
 // Course allocation stats
-router.get('/course-stats', async (req, res) => {
+router.get('/course-stats', checkPermission('courses', 'view'), async (req, res) => {
   try {
     const { rows: courses } = await pool.query('SELECT course_code, course_name, max_seats, credit_hours FROM courses ORDER BY course_code');
     const stats = [];
@@ -316,7 +442,7 @@ router.get('/course-stats', async (req, res) => {
 });
 
 // Export: Paid students (one row per payment)
-router.get('/export/paid', async (req, res) => {
+router.get('/export/paid', checkPermission('reports', 'export'), async (req, res) => {
   try {
     const { rows: requests } = await pool.query(`
       SELECT r.request_id, r.student_id, s.name, r.total_credits, r.total_fees, r.status
@@ -361,7 +487,7 @@ router.get('/export/paid', async (req, res) => {
 });
 
 // Export: Awaiting approval
-router.get('/export/pending-approval', async (req, res) => {
+router.get('/export/pending-approval', checkPermission('reports', 'export'), async (req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT r.student_id, s.name, r.total_credits, r.total_fees, r.status, r.supervisor_comments,
@@ -380,7 +506,7 @@ router.get('/export/pending-approval', async (req, res) => {
 });
 
 // Export: Approved & unpaid (one row per payment)
-router.get('/export/unpaid', async (req, res) => {
+router.get('/export/unpaid', checkPermission('reports', 'export'), async (req, res) => {
   try {
     const { rows: requests } = await pool.query(`
       SELECT r.request_id, r.student_id, s.name, r.total_credits, r.total_fees, r.status
@@ -425,7 +551,7 @@ router.get('/export/unpaid', async (req, res) => {
 });
 
 // Update course seats
-router.post('/updateCourseSeats', async (req, res) => {
+router.post('/updateCourseSeats', checkPermission('courses', 'edit'), async (req, res) => {
   try {
     const { courseCode, maxSeats } = req.body;
     if (!courseCode || maxSeats === undefined) return res.status(400).json({ error: 'courseCode and maxSeats required' });
@@ -435,7 +561,7 @@ router.post('/updateCourseSeats', async (req, res) => {
 });
 
 // Set student photo
-router.post('/setPhoto', async (req, res) => {
+router.post('/setPhoto', checkPermission('students', 'edit'), async (req, res) => {
   try {
     const { studentId, photoUrl } = req.body;
     if (!studentId) return res.status(400).json({ error: 'Student ID required' });
@@ -445,7 +571,7 @@ router.post('/setPhoto', async (req, res) => {
 });
 
 // Generic password reset
-router.post('/resetPassword', async (req, res) => {
+router.post('/resetPassword', checkPermission('accounts', 'edit'), async (req, res) => {
   try {
     const { userId, role, newPassword } = req.body;
     if (!userId || !role || !newPassword) return res.status(400).json({ error: 'userId, role, and newPassword required' });
@@ -467,7 +593,7 @@ router.post('/resetPassword', async (req, res) => {
 });
 
 // Bulk upload failed courses
-router.post('/bulkFailedCourses', async (req, res) => {
+router.post('/bulkFailedCourses', checkPermission('courses', 'add'), async (req, res) => {
   try {
     const { data } = req.body;
     if (!data || !Array.isArray(data)) return res.status(400).json({ error: 'data array required' });
@@ -487,7 +613,7 @@ router.post('/bulkFailedCourses', async (req, res) => {
 });
 
 // Bulk assign supervisors / create students
-router.post('/bulkAssignSupervisors', async (req, res) => {
+router.post('/bulkAssignSupervisors', checkPermission('students', 'add'), async (req, res) => {
   try {
     const { data } = req.body;
     if (!data || !Array.isArray(data)) return res.status(400).json({ error: 'data array required' });
@@ -513,7 +639,7 @@ router.post('/bulkAssignSupervisors', async (req, res) => {
 });
 
 // Bulk update courses
-router.post('/bulkUpdateCourses', async (req, res) => {
+router.post('/bulkUpdateCourses', checkPermission('courses', 'add'), async (req, res) => {
   try {
     const { data } = req.body;
     if (!data || !Array.isArray(data)) return res.status(400).json({ error: 'data array required' });
@@ -539,7 +665,7 @@ router.post('/bulkUpdateCourses', async (req, res) => {
 });
 
 // Add single student
-router.post('/addStudent', async (req, res) => {
+router.post('/addStudent', checkPermission('students', 'add'), async (req, res) => {
   try {
     const { studentId, name, email, faculty, academicLevel, supervisorId } = req.body;
     if (!studentId || !name) return res.status(400).json({ error: 'Student ID and Name required' });
@@ -553,7 +679,7 @@ router.post('/addStudent', async (req, res) => {
 });
 
 // Add single supervisor
-router.post('/addSupervisor', async (req, res) => {
+router.post('/addSupervisor', checkPermission('students', 'add'), async (req, res) => {
   try {
     const { supervisorId, name, email } = req.body;
     if (!supervisorId || !name) return res.status(400).json({ error: 'Supervisor ID and Name required' });
@@ -566,7 +692,7 @@ router.post('/addSupervisor', async (req, res) => {
 });
 
 // Add single user (finance/admin)
-router.post('/addUser', async (req, res) => {
+router.post('/addUser', checkPermission('accounts', 'add'), async (req, res) => {
   try {
     const { username, role, email } = req.body;
     if (!username || !role) return res.status(400).json({ error: 'Username and role required' });
@@ -583,14 +709,14 @@ router.post('/addUser', async (req, res) => {
 
 // ===== FACULTIES MANAGEMENT =====
 
-router.get('/faculties', async (req, res) => {
+router.get('/faculties', checkPermission('faculties', 'view'), async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM faculties ORDER BY name');
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/faculties', async (req, res) => {
+router.post('/faculties', checkPermission('faculties', 'add'), async (req, res) => {
   try {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'Faculty name required' });
@@ -601,7 +727,7 @@ router.post('/faculties', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.delete('/faculties/:name', async (req, res) => {
+router.delete('/faculties/:name', checkPermission('faculties', 'delete'), async (req, res) => {
   try {
     const { name } = req.params;
     await pool.query('DELETE FROM faculties WHERE name = $1', [decodeURIComponent(name)]);
@@ -609,7 +735,7 @@ router.delete('/faculties/:name', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.put('/faculties/:name', async (req, res) => {
+router.put('/faculties/:name', checkPermission('faculties', 'edit'), async (req, res) => {
   try {
     const oldName = decodeURIComponent(req.params.name);
     const { newName } = req.body;
@@ -624,7 +750,7 @@ router.put('/faculties/:name', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.put('/faculties/:name/toggle', async (req, res) => {
+router.put('/faculties/:name/toggle', checkPermission('faculties', 'edit'), async (req, res) => {
   try {
     const { name } = req.params;
     const { field } = req.body;
@@ -637,57 +763,48 @@ router.put('/faculties/:name/toggle', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-// ===== UPLOAD RESULTS (with result_type + faculty filtering) =====
+// ===== PERMISSIONS MANAGEMENT =====
 
-router.post('/upload-results', async (req, res) => {
+router.get('/permissions/:username', checkPermission('accounts', 'view'), async (req, res) => {
   try {
-    const { csvData, resultType, faculty } = req.body;
-    if (!csvData) return res.status(400).json({ error: 'CSV data required' });
-    const type = resultType || 'midterm';
+    const { username } = req.params;
+    const result = await pool.query('SELECT username, role, permissions FROM users WHERE username = $1', [username]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
 
-    const csv = require('csv-parse/sync');
-    const records = csv.parse(csvData, { columns: true, skip_empty_lines: true, trim: true });
+router.put('/permissions/:username', checkPermission('accounts', 'edit'), async (req, res) => {
+  try {
+    const { username } = req.params;
+    const { permissions } = req.body;
+    if (!permissions || typeof permissions !== 'object') return res.status(400).json({ error: 'Permissions object required' });
+    const result = await pool.query('UPDATE users SET permissions = $1 WHERE username = $2 RETURNING username', [JSON.stringify(permissions), username]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    res.json({ message: 'Permissions updated for ' + username, success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
 
-    let uploaded = 0, skipped = 0, errors = [];
-    for (const row of records) {
-      const studentId = row.student_id || row.id;
-      const course = row.course || row.Course;
-      const grade = row.grade || row.Grade;
-      const name = row.name || row.Name || '';
-      const gpa = row.gpa || row.GPA || null;
-      const studentFaculty = row.faculty || row.Faculty || faculty || '';
-
-      if (!studentId || !course || !grade) { skipped++; continue; }
-
-      // If faculty filter is set, skip students not in that faculty
-      if (faculty && studentFaculty && studentFaculty.toLowerCase() !== faculty.toLowerCase()) {
-        skipped++; continue;
-      }
-
-      try {
-        if (name) {
-          const existing = await pool.query('SELECT student_id FROM students WHERE student_id = $1', [studentId]);
-          if (existing.rows.length === 0) {
-            const hash = await bcrypt.hash(studentId.replace('-', ''), 10);
-            await pool.query('INSERT INTO students (student_id, name, password_hash, first_login, gpa, faculty) VALUES ($1, $2, $3, true, $4, $5) ON CONFLICT (student_id) DO UPDATE SET name = $2, gpa = $4',
-              [studentId, name, hash, gpa || null, studentFaculty || null]);
-          } else if (gpa) {
-            await pool.query('UPDATE students SET gpa = $1 WHERE student_id = $2', [gpa, studentId]);
-          }
-        }
-        await pool.query(
-          'INSERT INTO results (student_id, course, grade, result_type) VALUES ($1, $2, $3, $4) ON CONFLICT (student_id, course, result_type) DO UPDATE SET grade = $3',
-          [studentId, course, grade, type]
-        );
-        uploaded++;
-      } catch (e) { errors.push(`Row for ${studentId}: ${e.message}`); }
+router.get('/my-permissions', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT permissions, role FROM users WHERE username = $1', [req.user.username]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const user = result.rows[0];
+    // Admin with null permissions = full access
+    if (user.role === 'admin' && !user.permissions) {
+      return res.json({ fullAdmin: true, permissions: {
+        students: ['view', 'add', 'edit', 'delete'],
+        courses: ['view', 'add', 'edit', 'delete'],
+        results: ['view', 'upload'],
+        faculties: ['view', 'add', 'edit', 'delete'],
+        reports: ['view', 'export'],
+        accounts: ['view', 'add', 'edit', 'delete'],
+        settings: ['view', 'edit'],
+        appeals: ['view', 'edit']
+      }});
     }
-
-    res.json({ message: `Uploaded ${uploaded} ${type} results, skipped ${skipped}`, errors: errors.slice(0, 10) });
-  } catch (err) {
-    console.error('Upload results error:', err);
-    res.status(500).json({ error: 'Failed to process CSV' });
-  }
+    res.json({ fullAdmin: false, permissions: user.permissions || {} });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
 module.exports = router;

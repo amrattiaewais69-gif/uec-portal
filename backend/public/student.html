@@ -364,12 +364,23 @@ currentResultData=null;
 try{
 const res=await fetch(API+'/student/results?type='+type,{headers:{'Authorization':'Bearer '+token}});
 const data=await res.json();
-const keys=Object.keys(data.courses);
-if(data.hidden||keys.length===0){const msg=data.hidden?'Results not yet published for your faculty.':'No results available for '+titles[type]+' yet.';document.getElementById('resultContent').innerHTML='<div style="text-align:center;padding:30px;"><p style="font-size:16px;color:#999;">'+msg+'</p><p style="color:#bbb;font-size:13px;">Please check back later.</p></div>';return;}
+if(data.hidden){document.getElementById('resultContent').innerHTML='<div style="text-align:center;padding:30px;"><p style="font-size:16px;color:#999;">Results not yet published for your faculty.</p></div>';return;}
 currentResultData=data;
-let html='<table class="result-table"><tr><th>Course</th><th>Grade</th></tr>';
-keys.forEach(c=>{html+='<tr><td style="text-align:left;">'+c+'</td><td><b>'+data.courses[c]+'</b></td></tr>';});
+const rows=data.detailedResults||[];
+if(rows.length===0){document.getElementById('resultContent').innerHTML='<div style="text-align:center;padding:30px;"><p style="font-size:16px;color:#999;">No results available for '+titles[type]+' yet.</p></div>';return;}
+const hasDetails=rows.some(r=>r.midterm_grade!=null||r.final_grade!=null||r.coursework!=null);
+let html;
+if(hasDetails){
+html='<table class="result-table"><tr><th>Course</th><th>Midterm</th><th>CW</th><th>Final</th><th>Grade</th></tr>';
+rows.forEach(r=>{
+html+='<tr><td style="text-align:left;">'+r.course+'</td><td>'+(r.midterm_grade!=null?r.midterm_grade:'-')+'</td><td>'+(r.coursework!=null?r.coursework:'-')+'</td><td>'+(r.final_grade!=null?r.final_grade:'-')+'</td><td><b>'+(r.grade!=null?r.grade:'-')+'</b></td></tr>';
+});
+html+='<tr><td style="text-align:left;font-weight:bold;">GPA</td><td colspan="3"></td><td><b>'+data.gpa+'</b></td></tr></table>';
+}else{
+html='<table class="result-table"><tr><th>Course</th><th>Grade</th></tr>';
+rows.forEach(r=>{html+='<tr><td style="text-align:left;">'+r.course+'</td><td><b>'+(r.grade!=null?r.grade:'-')+'</b></td></tr>';});
 html+='<tr><td style="text-align:left;font-weight:bold;">GPA</td><td><b>'+data.gpa+'</b></td></tr></table>';
+}
 document.getElementById('resultContent').innerHTML=html;
 document.getElementById('dlPdfBtn').style.display='inline-flex';
 }catch(e){document.getElementById('resultContent').innerHTML='<p style="color:red;text-align:center;">Error loading results</p>';}
@@ -399,8 +410,7 @@ doc.text('Student ID:',20,y+10);doc.text(d.id,60,y+10);
 doc.text('Faculty:',20,y+20);doc.text(d.faculty||'N/A',60,y+20);
 doc.text('Result Type:',20,y+30);doc.text(typeLabels[currentResultType],60,y+30);
 try{const pRes=await fetch('/photos/'+d.id+'.jpg');if(pRes.ok){const pBlob=await pRes.blob();const pReader=new FileReader();await new Promise(r=>{pReader.onloadend=r;pReader.readAsDataURL(pBlob);});doc.addImage(pReader.result,'JPEG',160,y-10,30,35);}}catch(e){}
-const body=[];for(const[c,g]of Object.entries(d.courses)){body.push([c,g]);}body.push(['GPA',d.gpa]);
-doc.autoTable({startY:y+40,head:[['Course','Grade']],body,theme:'grid',headStyles:{fillColor:[10,31,60],textColor:255,halign:'center',fontStyle:'bold',fontSize:14},bodyStyles:{halign:'center',fontSize:12,cellPadding:3},alternateRowStyles:{fillColor:[245,247,250]},columnStyles:{0:{cellWidth:130},1:{cellWidth:40}}});
+const body=[];const rows=d.detailedResults||[];if(rows.length>0&&rows[0].midterm_grade!=null){rows.forEach(r=>{body.push([r.course,r.midterm_grade!=null?r.midterm_grade:'-',r.coursework!=null?r.coursework:'-',r.final_grade!=null?r.final_grade:'-',r.grade!=null?r.grade:'-']);});body.push(['GPA','','','',d.gpa]);doc.autoTable({startY:y+40,head:[['Course','Midterm','CW','Final','Grade']],body,theme:'grid',headStyles:{fillColor:[10,31,60],textColor:255,halign:'center',fontStyle:'bold',fontSize:12},bodyStyles:{halign:'center',fontSize:11,cellPadding:3},alternateRowStyles:{fillColor:[245,247,250]},columnStyles:{0:{cellWidth:80},1:{cellWidth:25},2:{cellWidth:25},3:{cellWidth:25},4:{cellWidth:25}}});}else{for(const[c,g]of Object.entries(d.courses)){body.push([c,g]);}body.push(['GPA',d.gpa]);doc.autoTable({startY:y+40,head:[['Course','Grade']],body,theme:'grid',headStyles:{fillColor:[10,31,60],textColor:255,halign:'center',fontStyle:'bold',fontSize:14},bodyStyles:{halign:'center',fontSize:12,cellPadding:3},alternateRowStyles:{fillColor:[245,247,250]},columnStyles:{0:{cellWidth:130},1:{cellWidth:40}}});}
 let lastY=doc.lastAutoTable.finalY+15;
 const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=100x100&data='+encodeURIComponent('https://portal.uec.edu.eg/verify?id='+d.id);
 doc.addImage(qrUrl,'PNG',15,lastY,30,30);

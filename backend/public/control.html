@@ -6,6 +6,7 @@
 <title>UEC Control Panel</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lato:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<style>@keyframes spin{to{transform:rotate(360deg);}}</style>
 </head>
 <body>
 <div id="loadingScreen" class="login-wrapper">
@@ -39,13 +40,20 @@
 <div class="header-bar">
 <div class="brand">
 <img src="logo.png">
-<h2>Appeal Control Dashboard</h2>
+<h2>Control Panel</h2>
 </div>
 <p id="loggedUser" style="color:var(--gold);font-size:13px;margin:0;"></p>
 </div>
 
 <div style="padding:25px 30px;">
 
+<div style="display:flex;gap:8px;margin-bottom:20px;">
+<button class="btn btn-gold btn-sm" id="tabAppeals" onclick="showTab('appeals')" style="font-weight:700;">Appeal Management</button>
+<button class="btn btn-navy btn-sm" id="tabResults" onclick="showTab('results')">Results Entry</button>
+</div>
+
+<!-- APPEALS TAB -->
+<div id="appealsSection">
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:25px;">
 <div style="background:var(--navy);color:var(--white);padding:20px;border-radius:var(--radius);text-align:center;">
 <h4 style="margin:0;font-size:12px;text-transform:uppercase;opacity:0.8;">Total</h4>
@@ -60,11 +68,14 @@
 <p id="statReview" style="font-size:28px;font-weight:700;margin:5px 0 0;">0</p>
 </div>
 <div style="background:#d4edda;color:#155724;padding:20px;border-radius:var(--radius);text-align:center;">
-<h4 style="margin:0;font-size:12px;text-transform:uppercase;opacity:0.8;">Revised</h4>
-<p id="statRevised" style="font-size:28px;font-weight:700;margin:5px 0 0;">0</p>
+<h4 style="margin:0;font-size:12px;text-transform:uppercase;opacity:0.8;">Revised (With Change)</h4>
+<p id="statRevisedChange" style="font-size:28px;font-weight:700;margin:5px 0 0;">0</p>
+</div>
+<div style="background:#e2e3e5;color:#383d41;padding:20px;border-radius:var(--radius);text-align:center;">
+<h4 style="margin:0;font-size:12px;text-transform:uppercase;opacity:0.8;">Revised (Without Change)</h4>
+<p id="statRevisedNoChange" style="font-size:28px;font-weight:700;margin:5px 0 0;">0</p>
 </div>
 </div>
-
 <div style="margin-bottom:25px;">
 <h3 style="color:var(--navy);font-family:'Playfair Display',serif;margin-bottom:12px;font-size:17px;">All Appeals</h3>
 <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:12px;">
@@ -75,9 +86,74 @@
 </div>
 <div style="overflow-x:auto;"><table id="appealsTable"><tr><th>ID</th><th>Student</th><th>Course</th><th>Reason</th><th>Status</th><th>Date</th><th>Action</th></tr></table></div>
 </div>
+</div>
+
+<!-- RESULTS ENTRY TAB -->
+<div id="resultsSection" style="display:none;">
+
+<div style="background:linear-gradient(135deg,var(--navy),#1a3a5c);border-radius:12px;padding:20px 25px;margin-bottom:20px;color:#fff;">
+<h3 style="margin:0 0 4px;font-family:'Playfair Display',serif;font-size:18px;">Results Entry</h3>
+<p style="margin:0;font-size:12px;opacity:0.7;">Select filters, choose a student, then enter grades for each course</p>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px;">
+<div>
+<label style="font-weight:600;font-size:11px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:5px;">1. Faculty</label>
+<select id="resFaculty" style="width:100%;padding:10px 14px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px;background:#fff;transition:border-color 0.2s;" onchange="onFilterChange()">
+<option value="">All Faculties</option>
+</select>
+</div>
+<div>
+<label style="font-weight:600;font-size:11px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:5px;">2. Academic Year</label>
+<select id="resYear" style="width:100%;padding:10px 14px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px;background:#fff;transition:border-color 0.2s;" onchange="onFilterChange()"></select>
+</div>
+<div>
+<label style="font-weight:600;font-size:11px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:5px;">3. Semester</label>
+<select id="resSemester" style="width:100%;padding:10px 14px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px;background:#fff;transition:border-color 0.2s;" onchange="onFilterChange()">
+<option value="fall">Fall</option><option value="spring">Spring</option><option value="summer">Summer</option>
+</select>
+</div>
+</div>
+
+<div style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:20px;">
+<label style="font-weight:600;font-size:11px;text-transform:uppercase;color:#64748b;display:block;margin-bottom:6px;">4. Select Student</label>
+<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+<select id="resStudentSelect" style="flex:1;min-width:300px;padding:10px 14px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px;background:#fff;" onchange="loadStudentCourses()">
+<option value="">Choose Faculty & Year first...</option>
+</select>
+<div id="resStudentInfo2" style="font-size:12px;color:#64748b;white-space:nowrap;"></div>
+</div>
+</div>
+
+<div id="resCoursesArea" style="display:none;">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+<h3 style="color:var(--navy);font-family:'Playfair Display',serif;margin:0;font-size:16px;">Course Grades</h3>
+<button class="btn btn-navy btn-sm" onclick="saveAllResults()" id="btnSaveAll" style="display:none;">Save All</button>
+</div>
+<div style="overflow-x:auto;background:#fff;border:2px solid #e2e8f0;border-radius:10px;">
+<table id="coursesTable" style="width:100%;border-collapse:collapse;font-size:13px;">
+<thead><tr>
+<th style="padding:10px 12px;background:var(--navy);color:#fff;text-align:left;font-size:11px;text-transform:uppercase;">Course</th>
+<th style="padding:10px 12px;background:var(--navy);color:#fff;width:100px;font-size:11px;text-transform:uppercase;text-align:center;">Midterm /100</th>
+<th style="padding:10px 12px;background:var(--navy);color:#fff;width:100px;font-size:11px;text-transform:uppercase;text-align:center;">CW /100</th>
+<th style="padding:10px 12px;background:var(--navy);color:#fff;width:100px;font-size:11px;text-transform:uppercase;text-align:center;">Final /100</th>
+<th style="padding:10px 12px;background:var(--gold);color:var(--navy);width:90px;font-size:11px;text-transform:uppercase;text-align:center;font-weight:700;">Grade</th>
+<th style="padding:10px 12px;background:var(--navy);color:#fff;width:80px;font-size:11px;text-transform:uppercase;text-align:center;">Action</th>
+</tr></thead>
+<tbody></tbody>
+</table>
+</div>
+</div>
+
+<div id="resSaveStatus" style="margin-top:10px;font-size:13px;font-weight:600;min-height:20px;"></div>
+<div id="resEmpty" style="text-align:center;padding:40px;color:#94a3b8;">
+<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" style="margin-bottom:10px;"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+<p style="margin:0;font-size:14px;">Select a student above to view and enter grades</p>
+</div>
+</div>
 
 <div class="footer-bar">
-<button class="btn btn-navy btn-sm" onclick="exportCSV()">Export CSV</button>
+<button class="btn btn-navy btn-sm" id="btnExportCSV" onclick="exportCSV()">Export CSV</button>
 <button class="btn btn-outline btn-sm" onclick="openChangePassword()">Change Password</button>
 <button class="btn btn-danger btn-sm" onclick="logout()">Logout</button>
 </div>
@@ -145,7 +221,7 @@ loadAppeals();
 }
 
 async function loadAppeals(){try{const res=await fetch(API+'/control/appeals',{headers:{'Authorization':'Bearer '+token}});if(!res.ok)return;allAppeals=await res.json();updateStats();filterAppeals();}catch(e){}}
-function updateStats(){document.getElementById('statTotal').textContent=allAppeals.length;document.getElementById('statPending').textContent=allAppeals.filter(a=>a.status==='Pending').length;document.getElementById('statReview').textContent=allAppeals.filter(a=>a.status==='Under Review').length;document.getElementById('statRevised').textContent=allAppeals.filter(a=>a.status.startsWith('Revised')).length;}
+function updateStats(){document.getElementById('statTotal').textContent=allAppeals.length;document.getElementById('statPending').textContent=allAppeals.filter(a=>a.status==='Pending').length;document.getElementById('statReview').textContent=allAppeals.filter(a=>a.status==='Under Review').length;document.getElementById('statRevisedChange').textContent=allAppeals.filter(a=>a.status==='Revised with change').length;document.getElementById('statRevisedNoChange').textContent=allAppeals.filter(a=>a.status==='Revised without change').length;}
 function filterAppeals(){const q=document.getElementById('searchAppeal').value.toLowerCase();const sf=document.getElementById('statusFilter').value;const t=document.getElementById('appealsTable');t.innerHTML='<tr><th>ID</th><th>Student</th><th>Course</th><th>Reason</th><th>Status</th><th>Date</th><th>Action</th></tr>';allAppeals.filter(a=>{if(sf!=='all'&&a.status!==sf)return false;if(q&&!a.student_name.toLowerCase().includes(q)&&!a.student_id.toLowerCase().includes(q))return false;return true;}).forEach(a=>{const tr=document.createElement('tr');tr.innerHTML='<td></td><td></td><td></td><td></td><td></td><td></td><td></td>';tr.cells[0].textContent=a.id;tr.cells[1].textContent=a.student_name+' ('+a.student_id+')';tr.cells[2].textContent=a.course;tr.cells[3].textContent=a.reason;tr.cells[4].textContent=a.status;tr.cells[5].textContent=new Date(a.date).toLocaleDateString();const sel=document.createElement('select');sel.style.cssText='padding:5px 8px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;margin-right:5px;';['Pending','Under Review','Revised with change','Revised without change'].forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;if(s===a.status)o.selected=true;sel.appendChild(o);});const btn=document.createElement('button');btn.textContent='Update';btn.className='btn btn-gold btn-sm';btn.onclick=()=>updateStatus(a.id,sel.value);tr.cells[6].appendChild(sel);tr.cells[6].appendChild(btn);t.appendChild(tr);});}
 async function updateStatus(id,status){const res=await fetch(API+'/control/appeal-status',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({id,status})});const data=await res.json();if(res.ok){loadAppeals();}else{alert(data.error||'Failed');}}
 function exportCSV(){let csv='ID,Student ID,Student Name,Course,Reason,Status,Date\n';allAppeals.forEach(a=>{csv+=`${a.id},${a.student_id},"${a.student_name}",${a.course},"${a.reason}",${a.status},${a.date}\n`;});const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='UEC_Appeals.csv';link.click();}
@@ -154,6 +230,160 @@ function closeChangePassword(){document.getElementById('cpModal').classList.remo
 async function changePassword(){const np=document.getElementById('cpNew').value.trim();const cp=document.getElementById('cpConfirm').value.trim();if(!np||!cp||np!==cp){alert('Check passwords');return;}if(np.length<8||!/[A-Z]/.test(np)||!/[a-z]/.test(np)||!/[0-9]/.test(np)||!/[^A-Za-z0-9]/.test(np)){alert('Need: 8+ chars, upper, lower, number, special');return;}const res=await fetch(API+'/auth/account-change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Updated. Login again.');localStorage.clear();location.href='login.html';}else{alert(data.error||'Failed');}}
 async function submitFirstLoginPassword(){const np=document.getElementById('flNewPass').value.trim();const cp=document.getElementById('flConfirmPass').value.trim();if(!np||!cp||np!==cp){alert('Check passwords');return;}if(np.length<8||!/[A-Z]/.test(np)||!/[a-z]/.test(np)||!/[0-9]/.test(np)||!/[^A-Za-z0-9]/.test(np)){alert('Need: 8+ chars, upper, lower, number, special');return;}const res=await fetch(API+'/auth/account-change-password',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({newPassword:np})});const data=await res.json();if(res.ok){alert('Password updated. Please login again.');localStorage.clear();location.href='login.html';}else{alert(data.error||'Failed');}}
 function logout(){localStorage.clear();location.href='login.html';}
+
+// Tabs
+function showTab(tab){
+document.getElementById('appealsSection').style.display=tab==='appeals'?'block':'none';
+document.getElementById('resultsSection').style.display=tab==='results'?'block':'none';
+document.getElementById('tabAppeals').className=tab==='appeals'?'btn btn-gold btn-sm':'btn btn-navy btn-sm';
+document.getElementById('tabResults').className=tab==='results'?'btn btn-gold btn-sm':'btn btn-navy btn-sm';
+document.getElementById('btnExportCSV').style.display=tab==='appeals'?'inline-block':'none';
+if(tab==='results')initResultsEntry();
+}
+
+// Results Entry
+let _resEntryInit=false;
+async function initResultsEntry(){
+if(_resEntryInit)return;_resEntryInit=true;
+const sel=document.getElementById('resYear');
+const cur=new Date().getFullYear();
+for(let y=cur;y>=cur-5;y--){sel.innerHTML+='<option value="'+y+'">'+y+'</option>';}
+try{
+const res=await fetch(API+'/control/faculties',{headers:{'Authorization':'Bearer '+token}});
+if(res.ok){
+const faculties=await res.json();
+const fsel=document.getElementById('resFaculty');
+faculties.forEach(f=>{fsel.innerHTML+='<option value="'+f.name+'">'+f.name+'</option>';});
+}
+}catch(e){}
+}
+function onFilterChange(){
+const fac=document.getElementById('resFaculty').value;
+const yr=document.getElementById('resYear').value;
+const sem=document.getElementById('resSemester').value;
+if(fac&&yr&&sem){loadFacultyStudents();}
+else{
+const sel=document.getElementById('resStudentSelect');
+sel.innerHTML='<option value="">Select Faculty, Year & Semester first...</option>';
+document.getElementById('resCoursesArea').style.display='none';
+document.getElementById('resEmpty').style.display='block';
+document.getElementById('resSaveStatus').textContent='';
+}
+}
+async function loadFacultyStudents(){
+const faculty=document.getElementById('resFaculty').value;
+const year=document.getElementById('resYear').value;
+const semester=document.getElementById('resSemester').value;
+const sel=document.getElementById('resStudentSelect');
+sel.innerHTML='<option value="">Loading students...</option>';
+document.getElementById('resCoursesArea').style.display='none';
+document.getElementById('resEmpty').style.display='block';
+try{
+const url=API+'/control/students-by-faculty'+(faculty?'?faculty='+encodeURIComponent(faculty):'');
+const res=await fetch(url,{headers:{'Authorization':'Bearer '+token}});
+const students=await res.json();
+sel.innerHTML='<option value="">Choose Student... ('+students.length+' available)</option>';
+students.forEach(s=>{sel.innerHTML+='<option value="'+s.student_id+'">'+s.name+' ('+s.student_id+') — '+(s.faculty||'')+'</option>';});
+}catch(e){sel.innerHTML='<option value="">Error loading students</option>';}
+}
+async function loadStudentCourses(){
+const studentId=document.getElementById('resStudentSelect').value;
+const year=document.getElementById('resYear').value;
+const semester=document.getElementById('resSemester').value;
+const tbody=document.querySelector('#coursesTable tbody');
+tbody.innerHTML='';
+if(!studentId){
+document.getElementById('resCoursesArea').style.display='none';
+document.getElementById('resEmpty').style.display='block';
+document.getElementById('resSaveStatus').textContent='';
+return;
+}
+document.getElementById('resEmpty').style.display='none';
+document.getElementById('resCoursesArea').style.display='block';
+document.getElementById('resSaveStatus').textContent='';
+const opt=document.getElementById('resStudentSelect').options[document.getElementById('resStudentSelect').selectedIndex];
+const studentName=opt?opt.textContent:'';
+document.getElementById('resStudentInfo2').innerHTML='<strong>'+studentName+'</strong>';
+tbody.innerHTML='<tr><td colspan="7" style="padding:30px;text-align:center;color:#94a3b8;"><div style="display:inline-block;width:20px;height:20px;border:2px solid #cbd5e1;border-top-color:var(--navy);border-radius:50%;animation:spin 0.8s linear infinite;"></div><br>Loading courses...</td></tr>';
+try{
+const res=await fetch(API+'/control/student-courses/'+studentId,{headers:{'Authorization':'Bearer '+token}});
+const courses=await res.json();
+if(courses.length===0){tbody.innerHTML='<tr><td colspan="7" style="padding:30px;text-align:center;color:#94a3b8;">No courses found for this student in this faculty.</td></tr>';return;}
+const qParams=new URLSearchParams();
+if(year)qParams.set('year',year);
+if(semester)qParams.set('semester',semester);
+const resRes=await fetch(API+'/control/student-results/'+studentId+'?'+qParams.toString(),{headers:{'Authorization':'Bearer '+token}});
+const existing=await resRes.json();
+document.getElementById('btnSaveAll').style.display='inline-block';
+tbody.innerHTML='';
+courses.forEach((c,idx)=>{
+const exList=existing.filter(r=>r.course===c.course_code);
+const ex=exList.find(r=>r.year===year&&r.semester===semester)||exList[0]||{};
+const savedMid=ex.midterm_grade||'';
+const savedCW=ex.coursework||'';
+const savedFinal=ex.final_grade||'';
+const savedGrade=ex.grade||'-';
+const bg=idx%2===0?'#fff':'#f8fafc';
+const tr=document.createElement('tr');
+tr.style.background=bg;
+tr.style.transition='background 0.2s';
+tr.onmouseover=function(){this.style.background='#f1f5f9';};
+tr.onmouseout=function(){this.style.background=bg;};
+tr.innerHTML=
+'<td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;"><div style="display:flex;align-items:center;gap:8px;">'+
+'<span style="background:var(--navy);color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;white-space:nowrap;">'+c.course_code+'</span>'+
+'<span><strong style="font-size:13px;">'+c.course_name+'</strong><br><small style="color:#94a3b8;">'+c.credit_hours+' Credit Hours</small></span>'+
+'</div></td>'+
+'<td style="padding:10px 12px;text-align:center;border-bottom:1px solid #f1f5f9;"><input type="number" min="0" max="100" id="mid_'+c.course_code+'" value="'+savedMid+'" style="width:75px;padding:7px;border:1px solid #e2e8f0;border-radius:6px;text-align:center;font-size:13px;" placeholder="--"></td>'+
+'<td style="padding:10px 12px;text-align:center;border-bottom:1px solid #f1f5f9;"><input type="number" min="0" max="100" id="cw_'+c.course_code+'" value="'+savedCW+'" style="width:75px;padding:7px;border:1px solid #e2e8f0;border-radius:6px;text-align:center;font-size:13px;" placeholder="--"></td>'+
+'<td style="padding:10px 12px;text-align:center;border-bottom:1px solid #f1f5f9;"><input type="number" min="0" max="100" id="fg_'+c.course_code+'" value="'+savedFinal+'" style="width:75px;padding:7px;border:1px solid #e2e8f0;border-radius:6px;text-align:center;font-size:13px;" placeholder="--"></td>'+
+'<td style="padding:10px 12px;text-align:center;border-bottom:1px solid #f1f5f9;font-weight:700;font-size:14px;color:var(--navy);" id="gr_'+c.course_code+'">'+savedGrade+'</td>'+
+'<td style="padding:10px 12px;text-align:center;border-bottom:1px solid #f1f5f9;">'+
+'<button class="btn btn-gold btn-sm" style="font-size:11px;padding:5px 14px;border-radius:6px;" onclick="saveCourseResult(\''+studentId+'\',\''+c.course_code+'\',\''+c.faculty+'\')" title="Save '+c.course_code+'">Save</button>'+
+'</td>';
+tbody.appendChild(tr);
+});
+}catch(e){tbody.innerHTML='<tr><td colspan="7" style="padding:30px;text-align:center;color:#dc2626;">Error loading courses. Please try again.</td></tr>';}
+}
+async function saveCourseResult(studentId,courseCode,faculty){
+const year=document.getElementById('resYear').value;
+const semester=document.getElementById('resSemester').value;
+const midterm=document.getElementById('mid_'+courseCode).value;
+const cw=document.getElementById('cw_'+courseCode).value;
+const final=document.getElementById('fg_'+courseCode).value;
+const status=document.getElementById('resSaveStatus');
+try{
+const res=await fetch(API+'/control/save-result',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+body:JSON.stringify({studentId,course:courseCode,year,semester,midtermGrade:midterm||null,finalGrade:final||null,coursework:cw||null,faculty})});
+const data=await res.json();
+if(data.success){
+const grEl=document.getElementById('gr_'+courseCode);
+grEl.textContent=data.calculatedGrade||'-';
+grEl.style.color='#16a34a';
+status.style.color='#16a34a';
+status.innerHTML='&#10003; Saved: <strong>'+courseCode+'</strong> — Grade: <strong>'+(data.calculatedGrade||'-')+'</strong>';
+setTimeout(()=>{grEl.style.color='var(--navy)';},2000);
+}else{status.style.color='#dc2626';status.textContent=data.error||'Failed to save';}
+}catch(e){status.style.color='#dc2626';status.textContent='Error saving '+courseCode;}
+}
+async function saveAllResults(){
+const studentId=document.getElementById('resStudentSelect').value;
+if(!studentId)return;
+const rows=document.querySelectorAll('#coursesTable tbody tr');
+const status=document.getElementById('resSaveStatus');
+let saved=0,failed=0;
+status.style.color='#c5a358';status.textContent='Saving all results...';
+for(const tr of rows){
+const sel=tr.querySelector('select[id^="rt_"]');
+if(!sel)continue;
+const courseCode=sel.id.replace('rt_','');
+const facultyCell=tr.querySelector('td:first-child');
+const saveBtn=tr.querySelector('button');
+if(saveBtn)saveBtn.click();
+saved++;
+}
+status.style.color='#16a34a';status.innerHTML='&#10003; All results saved for this student.';
+}
 </script>
 </body>
 </html>
