@@ -25,13 +25,15 @@ router.get('/results', authenticateToken, async (req, res) => {
       }
     }
 
-    // Fetch ALL results for this student (control saves everything as result_type='final')
-    let query = 'SELECT course, grade, year, semester, midterm_grade, final_grade, coursework, result_type FROM results WHERE student_id = $1';
+    // Fetch ALL results for this student, aggregated per course
+    let query = `SELECT course, MAX(grade) as grade, year, semester,
+      MAX(midterm_grade) as midterm_grade, MAX(final_grade) as final_grade, MAX(coursework) as coursework
+      FROM results WHERE student_id = $1`;
     const params = [studentId];
     let idx = 2;
     if (year) { query += ` AND year = $${idx++}`; params.push(year); }
     if (semester) { query += ` AND semester = $${idx++}`; params.push(semester); }
-    query += ' ORDER BY course';
+    query += ' GROUP BY course, year, semester ORDER BY course';
     const coursesResult = await pool.query(query, params);
 
     // Build response based on requested type
