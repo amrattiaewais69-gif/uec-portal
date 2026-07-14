@@ -135,8 +135,11 @@ router.post('/payment', authenticateToken, requireRole('finance'), async (req, r
     const studentResult = await pool.query('SELECT name FROM students WHERE student_id = $1', [studentId]);
     const studentName = studentResult.rows.length > 0 ? studentResult.rows[0].name : '';
 
-    await pool.query('INSERT INTO appeal_payments (student_id, student_name, course, amount, recorded_by) VALUES ($1, $2, $3, $4, $5)', [studentId, studentName, course, amount, req.user.username]);
-    res.json({ message: 'Payment saved successfully' });
+    const { rows: payCount } = await pool.query('SELECT COUNT(*)::int as cnt FROM appeal_payments');
+    const receiptNo = 'APL-' + String((payCount[0].cnt || 0) + 1).padStart(5, '0');
+
+    await pool.query('INSERT INTO appeal_payments (student_id, student_name, course, amount, recorded_by, receipt_no) VALUES ($1, $2, $3, $4, $5, $6)', [studentId, studentName, course, amount, req.user.username, receiptNo]);
+    res.json({ message: 'Payment saved successfully', receiptNo, studentId, studentName, course, amount });
   } catch (err) {
     console.error('Save payment error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -145,10 +148,28 @@ router.post('/payment', authenticateToken, requireRole('finance'), async (req, r
 
 router.get('/appeal-history', authenticateToken, requireRole('finance'), async (req, res) => {
   try {
-    const result = await pool.query("SELECT student_id, student_name, course, amount, TO_CHAR(date, 'YYYY-MM-DD HH24:MI:SS') as date FROM appeal_payments ORDER BY date DESC");
+    const result = await pool.query("SELECT student_id, student_name, course, amount, TO_CHAR(date, 'YYYY-MM-DD HH24:MI:SS') as date, receipt_no FROM appeal_payments ORDER BY date DESC");
     res.json(result.rows);
   } catch (err) {
     console.error('Appeal history error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.get('/appeal-receipt/:studentId', authenticateToken, requireRole('finance'), async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const studentResult = await pool.query('SELECT student_id, name, faculty FROM students WHERE student_id = $1', [studentId]);
+    if (studentResult.rows.length === 0) return res.status(404).json({ error: 'Student not found' });
+    const paymentsResult = await pool.query("SELECT course, amount, receipt_no, TO_CHAR(date, 'YYYY-MM-DD HH24:MI:SS') as date FROM appeal_payments WHERE student_id = $1 ORDER BY date DESC", [studentId]);
+    const totalResult = await pool.query('SELECT COALESCE(SUM(amount),0)::numeric as total FROM appeal_payments WHERE student_id = $1', [studentId]);
+    res.json({
+      student: studentResult.rows[0],
+      payments: paymentsResult.rows,
+      totalAmount: Number(totalResult.rows[0].total)
+    });
+  } catch (err) {
+    console.error('Appeal receipt error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
