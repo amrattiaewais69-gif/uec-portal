@@ -5,8 +5,50 @@ const { authenticateToken, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-const RECEIPT_PREFIX = process.env.RECEIPT_PREFIX || 'UEC-2026-';
-const RECEIPT_START_SEQ = parseInt(process.env.RECEIPT_START_SEQ) || 1001;
+async function getNextReceiptNo() {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: prefixRows } = await client.query("SELECT value FROM settings WHERE key = 'receipt_prefix'");
+    const prefix = prefixRows.length > 0 ? prefixRows[0].value : 'UEC-';
+    const { rows: counterRows } = await client.query("SELECT value FROM settings WHERE key = 'receipt_counter'");
+    let counter = counterRows.length > 0 ? parseInt(counterRows[0].value) || 1 : 1;
+    const padded = String(counter).padStart(4, '0');
+    const receiptNo = prefix + padded;
+    await client.query("INSERT INTO settings (key, value) VALUES ('receipt_counter', $1) ON CONFLICT (key) DO UPDATE SET value = $1", [String(counter + 1)]);
+    await client.query('COMMIT');
+    return receiptNo;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+router.get('/receipt-settings', authenticateToken, requireRole('finance'), async (req, res) => {
+  try {
+    const { rows: prefixRows } = await pool.query("SELECT value FROM settings WHERE key = 'receipt_prefix'");
+    const { rows: counterRows } = await pool.query("SELECT value FROM settings WHERE key = 'receipt_counter'");
+    res.json({
+      prefix: prefixRows.length > 0 ? prefixRows[0].value : 'UEC-',
+      counter: counterRows.length > 0 ? parseInt(counterRows[0].value) || 1 : 1
+    });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+router.put('/receipt-settings', authenticateToken, requireRole('finance'), async (req, res) => {
+  try {
+    const { prefix, counter } = req.body;
+    if (prefix !== undefined) {
+      await pool.query("INSERT INTO settings (key, value) VALUES ('receipt_prefix', $1) ON CONFLICT (key) DO UPDATE SET value = $1", [prefix]);
+    }
+    if (counter !== undefined) {
+      await pool.query("INSERT INTO settings (key, value) VALUES ('receipt_counter', $1) ON CONFLICT (key) DO UPDATE SET value = $1", [String(counter)]);
+    }
+    res.json({ message: 'Receipt settings updated' });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
 
 router.get('/dashboard', authenticateToken, requireRole('finance'), async (req, res) => {
   try {
@@ -70,18 +112,15 @@ router.post('/processPayment', authenticateToken, requireRole('finance'), async 
     const pDate = paymentDate ? new Date(paymentDate) : new Date();
     const ref = refNum || 'N/A';
     const method = paymentMethod || 'N/A';
-    const { rows: payCount } = await client.query('SELECT COUNT(*)::int as cnt FROM registration_payments');
-    let nextSeq = RECEIPT_START_SEQ + payCount[0].cnt;
     let newReceiptNo = '';
 
     if (paymentAmt > 0) {
-      newReceiptNo = RECEIPT_PREFIX + nextSeq;
+      newReceiptNo = await getNextReceiptNo();
       await client.query('INSERT INTO registration_payments (transaction_id, request_id, student_id, amount_paid, reference_number, payment_date, status, payment_method, receipt_no) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', [uuidv4(), requestId, requestRow.student_id, paymentAmt, ref, pDate, 'Verified', method, newReceiptNo]);
-      nextSeq++;
     }
 
     if (discountAmount > 0) {
-      let discReceipt = RECEIPT_PREFIX + nextSeq;
+      let discReceipt = await getNextReceiptNo();
       await client.query('INSERT INTO registration_payments (transaction_id, request_id, student_id, amount_paid, reference_number, payment_date, status, payment_method, receipt_no) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', [uuidv4(), requestId, requestRow.student_id, discountAmount, `Discount ${discountPerc}% - ${approvedBy}`, pDate, 'Settlement/Discount', 'Discount', discReceipt]);
       if (!newReceiptNo) newReceiptNo = discReceipt;
     }
@@ -135,8 +174,7 @@ router.post('/payment', authenticateToken, requireRole('finance'), async (req, r
     const studentResult = await pool.query('SELECT name FROM students WHERE student_id = $1', [studentId]);
     const studentName = studentResult.rows.length > 0 ? studentResult.rows[0].name : '';
 
-    const { rows: payCount } = await pool.query('SELECT COUNT(*)::int as cnt FROM appeal_payments');
-    const receiptNo = 'APL-' + String((payCount[0].cnt || 0) + 1).padStart(5, '0');
+    const receiptNo = await getNextReceiptNo();
 
     await pool.query('INSERT INTO appeal_payments (student_id, student_name, course, amount, recorded_by, receipt_no) VALUES ($1, $2, $3, $4, $5, $6)', [studentId, studentName, course, amount, req.user.username, receiptNo]);
     res.json({ message: 'Payment saved successfully', receiptNo, studentId, studentName, course, amount });

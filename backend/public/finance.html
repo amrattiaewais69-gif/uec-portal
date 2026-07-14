@@ -102,6 +102,7 @@
 <input id="appealStudentId" placeholder="Enter Student ID" style="padding:10px 15px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;width:250px;">
 <button class="btn btn-gold btn-sm" onclick="loadAppealStudent()">Load Student</button>
 <button class="btn btn-navy btn-sm" onclick="window.open(API+'/finance/payments/export?token='+token)">Export Payments</button>
+<button class="btn btn-outline btn-sm" onclick="openReceiptSettings()" style="margin-left:auto;">Receipt Format</button>
 </div>
 </div>
 
@@ -137,6 +138,21 @@
 <div class="footer">Designed by UEC ICT Department<br>© 2026 University of East Capital</div>
 
 <iframe id="printFrame" style="display:none;"></iframe>
+
+<div class="modal-overlay" id="receiptSettingsModal">
+<div class="modal-box" style="width:400px;">
+<h3>Receipt Format Settings</h3>
+<p style="font-size:12px;color:#64748b;margin:5px 0 15px;">Configure receipt number format. Example: <strong id="receiptExample">UEC-0001</strong></p>
+<label style="font-weight:600;font-size:13px;display:block;margin-bottom:4px;">Receipt Prefix</label>
+<input id="receiptPrefixInput" placeholder="UEC-" style="width:100%;padding:10px;margin:0 0 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:'Lato',sans-serif;">
+<label style="font-weight:600;font-size:13px;display:block;margin-bottom:4px;">Next Counter Number</label>
+<input id="receiptCounterInput" type="number" min="1" placeholder="1" style="width:100%;padding:10px;margin:0 0 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:'Lato',sans-serif;">
+<div style="text-align:right;margin-top:15px;display:flex;gap:8px;justify-content:flex-end;">
+<button class="btn btn-navy btn-sm" onclick="saveReceiptSettings()">Save</button>
+<button class="btn btn-danger btn-sm" onclick="document.getElementById('receiptSettingsModal').classList.remove('active')">Cancel</button>
+</div>
+</div>
+</div>
 
 <div class="modal-overlay" id="cpModal">
 <div class="modal-box" style="width:400px;">
@@ -350,6 +366,32 @@ const iframe=document.getElementById('printFrame');
 iframe.contentWindow.document.open();iframe.contentWindow.document.write(receiptHTML);iframe.contentWindow.document.close();
 setTimeout(()=>{iframe.contentWindow.focus();iframe.contentWindow.print();},300);
 }catch(e){alert('Error loading receipt data');}
+}
+
+function openReceiptSettings(){
+fetch(API+'/finance/receipt-settings',{headers:{'Authorization':'Bearer '+token}})
+.then(r=>r.json()).then(d=>{
+document.getElementById('receiptPrefixInput').value=d.prefix||'UEC-';
+document.getElementById('receiptCounterInput').value=d.counter||1;
+document.getElementById('receiptExample').textContent=(d.prefix||'UEC-')+String(d.counter||1).padStart(4,'0');
+document.getElementById('receiptSettingsModal').classList.add('active');
+}).catch(()=>{});
+}
+document.getElementById('receiptPrefixInput').addEventListener('input',function(){
+const c=document.getElementById('receiptCounterInput').value||'1';
+document.getElementById('receiptExample').textContent=this.value+String(c).padStart(4,'0');
+});
+document.getElementById('receiptCounterInput').addEventListener('input',function(){
+const p=document.getElementById('receiptPrefixInput').value||'UEC-';
+document.getElementById('receiptExample').textContent=p+String(this.value||'1').padStart(4,'0');
+});
+async function saveReceiptSettings(){
+const prefix=document.getElementById('receiptPrefixInput').value.trim();
+const counter=Number(document.getElementById('receiptCounterInput').value);
+if(!prefix){alert('Enter prefix');return;}
+try{const res=await fetch(API+'/finance/receipt-settings',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({prefix,counter})});
+if(res.ok){document.getElementById('receiptSettingsModal').classList.remove('active');alert('Receipt format updated');}
+else{alert('Failed');}}catch(e){alert('Error');}
 }
 
 function openChangePassword(){document.getElementById('cpModal').classList.add('active');}
