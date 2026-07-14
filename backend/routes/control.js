@@ -8,7 +8,7 @@ const router = express.Router();
 // Get faculties (for control results entry)
 router.get('/faculties', authenticateToken, requireRole('control'), async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name FROM faculties ORDER BY name');
+    const result = await pool.query('SELECT id, name, midterm_weight, coursework_weight, final_weight FROM faculties ORDER BY name');
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
@@ -107,15 +107,20 @@ router.post('/save-result', authenticateToken, requireRole('control'), async (re
     const hasFG = finalGrade !== null && finalGrade !== undefined && finalGrade !== '';
     const hasCW = coursework !== null && coursework !== undefined && coursework !== '';
 
+    // Get faculty grading weights
+    let mw = 20, cwWeight = 40, fw = 40;
+    if (faculty) {
+      const fResult = await pool.query('SELECT midterm_weight, coursework_weight, final_weight FROM faculties WHERE name = $1', [faculty]);
+      if (fResult.rows.length > 0) {
+        mw = fResult.rows[0].midterm_weight;
+        cwWeight = fResult.rows[0].coursework_weight;
+        fw = fResult.rows[0].final_weight;
+      }
+    }
+
     let calculatedGrade = null;
-    if (hasMG && hasFG) {
-      calculatedGrade = (mg * 0.3 + cw * 0.1 + fg * 0.6).toFixed(1);
-    } else if (hasFG) {
-      calculatedGrade = fg.toFixed(1);
-    } else if (hasMG) {
-      calculatedGrade = mg.toFixed(1);
-    } else if (hasCW) {
-      calculatedGrade = cw.toFixed(1);
+    if (hasMG || hasCW || hasFG) {
+      calculatedGrade = ((mg * mw + cw * cwWeight + fg * fw) / 100).toFixed(1);
     }
 
     await pool.query(
@@ -125,7 +130,7 @@ router.post('/save-result', authenticateToken, requireRole('control'), async (re
        DO UPDATE SET midterm_grade = $7, final_grade = $8, coursework = $9, grade = $3, faculty = $10`,
       [studentId, course, calculatedGrade, rType, year, semester, midtermGrade || null, finalGrade || null, coursework || null, faculty || null]
     );
-    res.json({ message: 'Result saved', calculatedGrade, success: true });
+    res.json({ message: 'Result saved', calculatedGrade, weights: { midterm: mw, coursework: cwWeight, final: fw }, success: true });
   } catch (err) { console.error('save-result error:', err.message); res.status(500).json({ error: 'Server error' }); }
 });
 
@@ -162,11 +167,14 @@ router.post('/save-results-bulk', authenticateToken, requireRole('control'), asy
         const hasFG = finalGrade != null && finalGrade !== '';
         const hasCW = coursework != null && coursework !== '';
 
+        let mw = 20, cwWeight = 40, fw = 40;
+        if (faculty) {
+          const fResult = await pool.query('SELECT midterm_weight, coursework_weight, final_weight FROM faculties WHERE name = $1', [faculty]);
+          if (fResult.rows.length > 0) { mw = fResult.rows[0].midterm_weight; cwWeight = fResult.rows[0].coursework_weight; fw = fResult.rows[0].final_weight; }
+        }
+
         let calculatedGrade = null;
-        if (hasMG && hasFG) { calculatedGrade = (mg * 0.3 + cw * 0.1 + fg * 0.6).toFixed(1); }
-        else if (hasFG) { calculatedGrade = fg.toFixed(1); }
-        else if (hasMG) { calculatedGrade = mg.toFixed(1); }
-        else if (hasCW) { calculatedGrade = cw.toFixed(1); }
+        if (hasMG || hasCW || hasFG) { calculatedGrade = ((mg * mw + cw * cwWeight + fg * fw) / 100).toFixed(1); }
         await pool.query(
           `INSERT INTO results (student_id, course, grade, result_type, year, semester, midterm_grade, final_grade, coursework, faculty)
            VALUES ($1,$2,$3,'final',$4,$5,$6,$7,$8,$9)

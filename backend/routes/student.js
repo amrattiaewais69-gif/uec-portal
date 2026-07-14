@@ -17,7 +17,7 @@ router.get('/results', authenticateToken, async (req, res) => {
 
     const studentFaculty = studentResult.rows[0].faculty;
 
-    // Check visibility for the requested type
+    // Enforce visibility check
     if (resultType) {
       const visResult = await pool.query(`SELECT ${resultType}_visible FROM faculties WHERE name = $1`, [studentFaculty]);
       if (visResult.rows.length === 0 || !visResult.rows[0][`${resultType}_visible`]) {
@@ -25,32 +25,32 @@ router.get('/results', authenticateToken, async (req, res) => {
       }
     }
 
-    // Fetch ALL results for this student, aggregated per course
-    let query = `SELECT course, MAX(grade) as grade, year, semester,
-      MAX(midterm_grade) as midterm_grade, MAX(final_grade) as final_grade, MAX(coursework) as coursework
-      FROM results WHERE student_id = $1`;
+    // Fetch results with course names, aggregated per course
+    let query = `SELECT r.course, c.course_name, MAX(r.grade) as grade, r.year, r.semester,
+      MAX(r.midterm_grade) as midterm_grade, MAX(r.final_grade) as final_grade, MAX(r.coursework) as coursework
+      FROM results r LEFT JOIN courses c ON r.course = c.course_code
+      WHERE r.student_id = $1`;
     const params = [studentId];
     let idx = 2;
-    if (year) { query += ` AND year = $${idx++}`; params.push(year); }
-    if (semester) { query += ` AND semester = $${idx++}`; params.push(semester); }
-    query += ' GROUP BY course, year, semester ORDER BY course';
+    if (year) { query += ` AND r.year = $${idx++}`; params.push(year); }
+    if (semester) { query += ` AND r.semester = $${idx++}`; params.push(semester); }
+    if (resultType === 'midterm') { query += ` AND r.midterm_grade IS NOT NULL`; }
+    query += ' GROUP BY r.course, c.course_name, r.year, r.semester ORDER BY r.course';
     const coursesResult = await pool.query(query, params);
 
     // Build response based on requested type
     const courses = {};
     const detailedResults = coursesResult.rows.map(row => {
+      const displayName = row.course_name ? row.course_name : row.course;
       if (resultType === 'midterm') {
-        // Midterm view: only midterm_grade
-        courses[row.course] = row.midterm_grade;
-        return { course: row.course, grade: row.midterm_grade, year: row.year, semester: row.semester };
+        courses[displayName] = row.midterm_grade;
+        return { course: row.course, courseName: displayName, grade: row.midterm_grade, year: row.year, semester: row.semester };
       } else if (resultType === 'final') {
-        // Final view: full breakdown (midterm + CW + final + calculated grade)
-        courses[row.course] = row.grade;
-        return { course: row.course, grade: row.grade, year: row.year, semester: row.semester, midterm_grade: row.midterm_grade, final_grade: row.final_grade, coursework: row.coursework };
+        courses[displayName] = row.grade;
+        return { course: row.course, courseName: displayName, grade: row.grade, year: row.year, semester: row.semester, midterm_grade: row.midterm_grade, final_grade: row.final_grade, coursework: row.coursework };
       } else {
-        // Default: show calculated grade
-        courses[row.course] = row.grade;
-        return { course: row.course, grade: row.grade, year: row.year, semester: row.semester, midterm_grade: row.midterm_grade, final_grade: row.final_grade, coursework: row.coursework };
+        courses[displayName] = row.grade;
+        return { course: row.course, courseName: displayName, grade: row.grade, year: row.year, semester: row.semester, midterm_grade: row.midterm_grade, final_grade: row.final_grade, coursework: row.coursework };
       }
     });
 

@@ -763,6 +763,22 @@ router.put('/faculties/:name/toggle', checkPermission('faculties', 'edit'), asyn
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
+router.put('/faculties/:name/weights', checkPermission('faculties', 'edit'), async (req, res) => {
+  try {
+    const decoded = decodeURIComponent(req.params.name);
+    const { midterm_weight, coursework_weight, final_weight } = req.body;
+    const mw = parseInt(midterm_weight);
+    const cw = parseInt(coursework_weight);
+    const fw = parseInt(final_weight);
+    if (isNaN(mw) || isNaN(cw) || isNaN(fw) || mw < 0 || cw < 0 || fw < 0 || mw + cw + fw !== 100) {
+      return res.status(400).json({ error: 'Weights must be non-negative and sum to 100' });
+    }
+    const result = await pool.query('UPDATE faculties SET midterm_weight=$1, coursework_weight=$2, final_weight=$3 WHERE name=$4 RETURNING *', [mw, cw, fw, decoded]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Faculty not found' });
+    res.json({ message: 'Weights updated', faculty: result.rows[0], success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
 // ===== PERMISSIONS MANAGEMENT =====
 
 router.get('/permissions/:username', checkPermission('accounts', 'view'), async (req, res) => {

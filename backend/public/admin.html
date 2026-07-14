@@ -267,7 +267,7 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 </div>
 <div style="overflow-x:auto;">
 <table id="facultiesTable">
-<thead><tr><th>Faculty</th><th>Registration</th><th>Midterm</th><th>Final</th><th>Summer</th><th>Action</th></tr></thead>
+<thead><tr><th>Faculty</th><th>Registration</th><th>Midterm</th><th>Final</th><th>Summer</th><th>Mid% (of 100)</th><th>CW% (of 100)</th><th>Final% (of 100)</th><th>Action</th></tr></thead>
 <tbody></tbody>
 </table>
 </div>
@@ -784,7 +784,10 @@ tr.innerHTML='<td><strong>'+f.name+'</strong></td>'+
 '<td><button class="toggle-btn '+(f.midterm_visible?'on':'')+'" onclick="toggleFaculty(\''+f.name+'\',\'midterm_visible\',this)">'+(f.midterm_visible?'YES':'NO')+'</button></td>'+
 '<td><button class="toggle-btn '+(f.final_visible?'on':'')+'" onclick="toggleFaculty(\''+f.name+'\',\'final_visible\',this)">'+(f.final_visible?'YES':'NO')+'</button></td>'+
 '<td><button class="toggle-btn '+(f.summer_visible?'on':'')+'" onclick="toggleFaculty(\''+f.name+'\',\'summer_visible\',this)">'+(f.summer_visible?'YES':'NO')+'</button></td>'+
-'<td><button class="btn btn-gold btn-sm" onclick="editFaculty(\''+f.name+'\')" style="margin-right:4px;">Edit</button><button class="btn btn-danger btn-sm" onclick="deleteFaculty(\''+f.name+'\')">Delete</button></td>';
+'<td><input type="number" min="0" max="100" value="'+(f.midterm_weight||20)+'" id="mw_'+f.name+'" style="width:55px;padding:5px;text-align:center;border:1px solid #cbd5e1;border-radius:4px;font-size:13px;"></td>'+
+'<td><input type="number" min="0" max="100" value="'+(f.coursework_weight||40)+'" id="cw_'+f.name+'" style="width:55px;padding:5px;text-align:center;border:1px solid #cbd5e1;border-radius:4px;font-size:13px;"></td>'+
+'<td><input type="number" min="0" max="100" value="'+(f.final_weight||40)+'" id="fw_'+f.name+'" style="width:55px;padding:5px;text-align:center;border:1px solid #cbd5e1;border-radius:4px;font-size:13px;"></td>'+
+'<td><button class="btn btn-gold btn-sm" onclick="saveWeights(\''+f.name+'\')">Save</button> <button class="btn btn-outline btn-sm" onclick="editFaculty(\''+f.name+'\')">Edit</button> <button class="btn btn-danger btn-sm" onclick="deleteFaculty(\''+f.name+'\')">Delete</button></td>';
 tbody.appendChild(tr);
 });
 if(curVal)sel.value=curVal;
@@ -800,6 +803,17 @@ btn.className='toggle-btn '+(val?'on':'');
 btn.textContent=field==='reg_open'?(val?'OPEN':'CLOSED'):(val?'YES':'NO');
 }else{alert(data.error||'Failed');}
 }catch(e){alert('Error');}
+}
+async function saveWeights(name){
+const mw=parseInt(document.getElementById('mw_'+name).value)||0;
+const cw=parseInt(document.getElementById('cw_'+name).value)||0;
+const fw=parseInt(document.getElementById('fw_'+name).value)||0;
+if(mw+cw+fw!==100){alert('Weights must sum to 100! Current sum: '+(mw+cw+fw));return;}
+try{
+const res=await fetch(API+'/admin/faculties/'+encodeURIComponent(name)+'/weights',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({midterm_weight:mw, coursework_weight:cw, final_weight:fw})});
+const data=await res.json();
+if(data.success){alert('Weights saved for '+name+': Mid='+mw+'%, CW='+cw+'%, Final='+fw+'%');}else{alert(data.error||'Failed');}
+}catch(e){alert('Error saving weights');}
 }
 async function addFaculty(){
 const name=document.getElementById('newFacultyName').value.trim();

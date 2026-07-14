@@ -370,18 +370,23 @@ const rows=data.detailedResults||[];
 if(rows.length===0){document.getElementById('resultContent').innerHTML='<div style="text-align:center;padding:30px;"><p style="font-size:16px;color:#999;">No results available for '+titles[type]+' yet.</p></div>';return;}
 let html;
 if(type==='midterm'){
-html='<table class="result-table"><tr><th>Course</th><th>Midterm Grade</th></tr>';
-rows.forEach(r=>{html+='<tr><td style="text-align:left;">'+r.course+'</td><td><b>'+(r.grade!=null?r.grade:'-')+'</b></td></tr>';});
+html='<table class="result-table"><tr><th>Course</th><th>Code</th><th>Midterm Grade</th></tr>';
+rows.forEach(r=>{
+const label=r.courseName&&r.courseName!==r.course?r.courseName+' ('+r.course+')':r.course;
+html+='<tr><td style="text-align:left;">'+r.courseName+'</td><td>'+r.course+'</td><td><b>'+(r.grade!=null?r.grade:'-')+'</b></td></tr>';
+});
 html+='</table>';
 }else if(type==='final'){
-html='<table class="result-table"><tr><th>Course</th><th>Midterm</th><th>CW</th><th>Final</th><th>Grade</th></tr>';
+html='<table class="result-table"><tr><th>Course</th><th>Code</th><th>Midterm</th><th>CW</th><th>Final</th><th>Grade</th></tr>';
 rows.forEach(r=>{
-html+='<tr><td style="text-align:left;">'+r.course+'</td><td>'+(r.midterm_grade!=null?r.midterm_grade:'-')+'</td><td>'+(r.coursework!=null?r.coursework:'-')+'</td><td>'+(r.final_grade!=null?r.final_grade:'-')+'</td><td><b>'+(r.grade!=null?r.grade:'-')+'</b></td></tr>';
+html+='<tr><td style="text-align:left;">'+r.courseName+'</td><td>'+r.course+'</td><td>'+(r.midterm_grade!=null?r.midterm_grade:'-')+'</td><td>'+(r.coursework!=null?r.coursework:'-')+'</td><td>'+(r.final_grade!=null?r.final_grade:'-')+'</td><td><b>'+(r.grade!=null?r.grade:'-')+'</b></td></tr>';
 });
 html+='</table>';
 }else{
-html='<table class="result-table"><tr><th>Course</th><th>Grade</th></tr>';
-rows.forEach(r=>{html+='<tr><td style="text-align:left;">'+r.course+'</td><td><b>'+(r.grade!=null?r.grade:'-')+'</b></td></tr>';});
+html='<table class="result-table"><tr><th>Course</th><th>Code</th><th>Grade</th></tr>';
+rows.forEach(r=>{
+html+='<tr><td style="text-align:left;">'+r.courseName+'</td><td>'+r.course+'</td><td><b>'+(r.grade!=null?r.grade:'-')+'</b></td></tr>';
+});
 html+='</table>';
 }
 document.getElementById('resultContent').innerHTML=html;
