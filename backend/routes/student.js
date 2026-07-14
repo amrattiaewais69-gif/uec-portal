@@ -17,7 +17,7 @@ router.get('/results', authenticateToken, async (req, res) => {
 
     const studentFaculty = studentResult.rows[0].faculty;
 
-    // Check visibility for the requested type (if specified)
+    // Check visibility for the requested type
     if (resultType) {
       const visResult = await pool.query(`SELECT ${resultType}_visible FROM faculties WHERE name = $1`, [studentFaculty]);
       if (visResult.rows.length === 0 || !visResult.rows[0][`${resultType}_visible`]) {
@@ -25,16 +25,32 @@ router.get('/results', authenticateToken, async (req, res) => {
       }
     }
 
+    // Fetch ALL results for this student (control saves everything as result_type='final')
     let query = 'SELECT course, grade, year, semester, midterm_grade, final_grade, coursework, result_type FROM results WHERE student_id = $1';
     const params = [studentId];
     let idx = 2;
-    if (resultType) { query += ` AND result_type = $${idx++}`; params.push(resultType); }
     if (year) { query += ` AND year = $${idx++}`; params.push(year); }
     if (semester) { query += ` AND semester = $${idx++}`; params.push(semester); }
     query += ' ORDER BY course';
     const coursesResult = await pool.query(query, params);
+
+    // Build response based on requested type
     const courses = {};
-    coursesResult.rows.forEach(row => { courses[row.course] = row.grade; });
+    const detailedResults = coursesResult.rows.map(row => {
+      if (resultType === 'midterm') {
+        // Midterm view: only midterm_grade
+        courses[row.course] = row.midterm_grade;
+        return { course: row.course, grade: row.midterm_grade, year: row.year, semester: row.semester };
+      } else if (resultType === 'final') {
+        // Final view: full breakdown (midterm + CW + final + calculated grade)
+        courses[row.course] = row.grade;
+        return { course: row.course, grade: row.grade, year: row.year, semester: row.semester, midterm_grade: row.midterm_grade, final_grade: row.final_grade, coursework: row.coursework };
+      } else {
+        // Default: show calculated grade
+        courses[row.course] = row.grade;
+        return { course: row.course, grade: row.grade, year: row.year, semester: row.semester, midterm_grade: row.midterm_grade, final_grade: row.final_grade, coursework: row.coursework };
+      }
+    });
 
     const storedGpa = studentResult.rows[0].gpa;
     const gpa = storedGpa !== null ? parseFloat(storedGpa).toFixed(2) : '0.00';
@@ -43,7 +59,7 @@ router.get('/results', authenticateToken, async (req, res) => {
     const periodsResult = await pool.query('SELECT DISTINCT year, semester FROM results WHERE student_id = $1 ORDER BY year DESC, semester DESC', [studentId]);
     const periods = periodsResult.rows;
 
-    res.json({ id: studentId, name: studentResult.rows[0].name, faculty: studentFaculty, courses, gpa, resultType: resultType || 'all', periods, detailedResults: coursesResult.rows });
+    res.json({ id: studentId, name: studentResult.rows[0].name, faculty: studentFaculty, courses, gpa, resultType: resultType || 'all', periods, detailedResults });
   } catch (err) {
     console.error('Get results error:', err);
     res.status(500).json({ error: 'Server error' });
