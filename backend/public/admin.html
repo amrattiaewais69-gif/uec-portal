@@ -251,6 +251,19 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 </div>
 </div>
 
+<div class="admin-grid-2" style="margin-top:20px;">
+<div class="admin-card">
+<h3>Bulk Upload: Supervisors (CSV)</h3>
+<div style="display:flex;flex-direction:column;gap:8px;">
+<small style="color:#64748b;">CSV: <code>SupervisorID,Password,SupervisorName,SupervisorEmail</code></small>
+<small style="color:#64748b;">Default password = SupervisorID if Password column is empty.</small>
+<input type="file" id="bulkSupervisorCsvFile" accept=".csv">
+<button class="btn btn-navy btn-sm" onclick="executeBulkSupervisorCsv()">Upload Supervisors CSV</button>
+<span id="bulkSupervisorResult" class="result"></span>
+</div>
+</div>
+</div>
+
 <!-- Upload Results -->
 <div class="admin-card" style="margin-top:20px;">
 <h3>Upload Student Results (CSV)</h3>
@@ -329,18 +342,22 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 <div style="margin:12px 0;">
 <div style="display:flex;gap:12px;margin-bottom:16px;align-items:flex-start;">
 <div style="background:var(--navy);color:#fff;border-radius:50%;min-width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">1</div>
-<div><strong>Courses (CSV)</strong><p style="margin:2px 0 6px;font-size:12px;color:#64748b;">Upload all courses first. Required before students can register.</p>
-<button class="btn btn-navy btn-sm" style="font-size:11px;" onclick="downloadTemplate('courses')">Download Template</button></div></div>
+<div><strong>Supervisors (CSV)</strong><p style="margin:2px 0 6px;font-size:12px;color:#64748b;">Upload supervisors first. Students need a supervisor_id.</p>
+<button class="btn btn-navy btn-sm" style="font-size:11px;" onclick="downloadTemplate('supervisors')">Download Template</button></div></div>
 <div style="display:flex;gap:12px;margin-bottom:16px;align-items:flex-start;">
 <div style="background:var(--navy);color:#fff;border-radius:50%;min-width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">2</div>
-<div><strong>Students + Supervisors (CSV)</strong><p style="margin:2px 0 6px;font-size:12px;color:#64748b;">Create/update students and assign supervisors.</p>
-<button class="btn btn-navy btn-sm" style="font-size:11px;" onclick="downloadTemplate('students')">Download Template</button></div></div>
+<div><strong>Courses (CSV)</strong><p style="margin:2px 0 6px;font-size:12px;color:#64748b;">Upload all courses. Required before students can register.</p>
+<button class="btn btn-navy btn-sm" style="font-size:11px;" onclick="downloadTemplate('courses')">Download Template</button></div></div>
 <div style="display:flex;gap:12px;margin-bottom:16px;align-items:flex-start;">
 <div style="background:var(--navy);color:#fff;border-radius:50%;min-width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">3</div>
+<div><strong>Students (CSV)</strong><p style="margin:2px 0 6px;font-size:12px;color:#64748b;">Create/update students and assign supervisors.</p>
+<button class="btn btn-navy btn-sm" style="font-size:11px;" onclick="downloadTemplate('students')">Download Template</button></div></div>
+<div style="display:flex;gap:12px;margin-bottom:16px;align-items:flex-start;">
+<div style="background:var(--navy);color:#fff;border-radius:50%;min-width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">4</div>
 <div><strong>Failed Courses (CSV)</strong><p style="margin:2px 0 6px;font-size:12px;color:#64748b;">Required! Without this, students see no courses to register for.</p>
 <button class="btn btn-navy btn-sm" style="font-size:11px;" onclick="downloadTemplate('failed')">Download Template</button></div></div>
 <div style="display:flex;gap:12px;margin-bottom:16px;align-items:flex-start;">
-<div style="background:var(--navy);color:#fff;border-radius:50%;min-width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">4</div>
+<div style="background:var(--navy);color:#fff;border-radius:50%;min-width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">5</div>
 <div><strong>Results (CSV)</strong><p style="margin:2px 0 6px;font-size:12px;color:#64748b;">Upload midterm/final results. Select type and year/semester before uploading.</p>
 <button class="btn btn-navy btn-sm" style="font-size:11px;" onclick="downloadTemplate('results')">Download Template</button></div></div>
 </div>
@@ -646,6 +663,16 @@ const r=await apiCall('/admin/bulkUpdateCourses','POST',{data});
 el.style.color=r.success?'#16a34a':'#dc2626';el.innerText=r.message;
 if(r.success){fi.value='';pullMetrics();}
 }
+async function executeBulkSupervisorCsv(){
+const fi=document.getElementById('bulkSupervisorCsvFile');const el=document.getElementById('bulkSupervisorResult');
+if(!fi.files.length){alert('Select a CSV file.');return;}
+const text=await fi.files[0].text();const rows=parseCSV(text);
+if(!rows.length){alert('CSV is empty.');return;}
+const data=rows.map(r=>({supervisorId:r.SupervisorID||'',password:r.Password||'',name:r.SupervisorName||'',email:r.SupervisorEmail||''}));
+const r=await apiCall('/admin/bulkSupervisors','POST',{data});
+el.style.color=r.success?'#16a34a':'#dc2626';el.innerText=r.message;
+if(r.success)fi.value='';
+}
 
 // Results CSV Upload
 function previewCSV(){
@@ -672,6 +699,7 @@ function openUploadGuide(){document.getElementById('uploadGuideModal').classList
 function closeUploadGuide(){document.getElementById('uploadGuideModal').classList.remove('active');}
 function downloadTemplate(type){
 const templates={
+supervisors:'SupervisorID,Password,SupervisorName,SupervisorEmail\nnmahmoud,,Nehad Mahmoud,nmahmoud@uec.edu.eg\nmhamdy,,Mai Hamdy,mhamdy@uec.edu.eg',
 courses:'CourseCode,CourseName,CreditHours,MaxSeats,FeePerCredit,Faculty\nINFE401,Foundations of Infections & Infestations,3,30,3500,Medicine\nIMMU401,Foundations of Immunology,3,30,3500,Medicine\nPATH401,Pathology I,3,30,3500,Dentistry',
 students:'StudentID,Password,Name,Email,AcademicLevel,SupervisorID,Faculty\n25100001,,Ahmed Mohamed,ahmed@uec.edu.eg,4th Year,sup001,Medicine\n25100002,,Sara Ali,sara@uec.edu.eg,4th Year,sup001,Medicine',
 failed:'StudentID,CourseCode\n25100001,INFE401\n25100003,IMMU401',

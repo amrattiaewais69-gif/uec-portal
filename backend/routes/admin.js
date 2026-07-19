@@ -691,6 +691,26 @@ router.post('/addSupervisor', checkPermission('students', 'add'), async (req, re
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
+router.post('/bulkSupervisors', checkPermission('students', 'add'), async (req, res) => {
+  try {
+    const { data } = req.body;
+    if (!data || !Array.isArray(data)) return res.status(400).json({ error: 'data array required' });
+    let created = 0, skipped = 0, errors = [];
+    for (const row of data) {
+      const { supervisorId, password, name, email } = row;
+      if (!supervisorId || !name) { skipped++; continue; }
+      try {
+        const existing = await pool.query('SELECT supervisor_id FROM supervisors WHERE supervisor_id = $1', [supervisorId]);
+        if (existing.rows.length > 0) { skipped++; continue; }
+        const hash = await bcrypt.hash(password || supervisorId, 10);
+        await pool.query('INSERT INTO supervisors (supervisor_id, name, email, password_hash, first_login) VALUES ($1,$2,$3,$4,true)', [supervisorId, name, email || null, hash]);
+        created++;
+      } catch (e) { errors.push(`${supervisorId}: ${e.message}`); skipped++; }
+    }
+    res.json({ message: `Created ${created}, Skipped ${skipped}` + (errors.length ? '. Errors: ' + errors.join('; ') : ''), success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
 // Add single user (finance/admin)
 router.post('/addUser', checkPermission('accounts', 'add'), async (req, res) => {
   try {
