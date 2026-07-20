@@ -43,8 +43,6 @@
   </div>
 
   <p style="margin-top:18px;font-size:12px;color:var(--gray);">This result has been verified by University of East Capital</p>
-
-  <button class="btn btn-outline" style="width:100%;margin-top:15px;" onclick="back()">Verify Another Student</button>
 </div>
 
 <div style="position:fixed;bottom:0;left:0;right:0;text-align:center;padding:15px;color:rgba(255,255,255,0.5);font-size:11px;">
@@ -83,13 +81,6 @@ async function verify(){
     err.textContent='Connection error';err.style.display='block';
     btn.textContent='Verify';btn.disabled=false;
   }
-}
-
-function back(){
-  document.getElementById('searchBox').style.display='block';
-  document.getElementById('resultBox').style.display='none';
-  document.getElementById('sid').value='';
-  document.getElementById('error').style.display='none';
 }
 </script>
 </body>
