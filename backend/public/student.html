@@ -383,7 +383,7 @@ html='<table class="result-table"><tr><th>Course</th><th>Code</th><th>Final</th>
 rows.forEach(r=>{
 html+='<tr><td style="text-align:left;">'+r.courseName+'</td><td>'+r.course+'</td><td><b>'+(r.final_grade!=null?r.final_grade:'-')+'</b></td></tr>';
 });
-html+='<tr style="border-top:2px solid var(--navy);font-weight:700;"><td colspan="2" style="text-align:right;">GPA</td><td><b>'+d.gpa+'</b></td></tr>';
+html+='<tr style="border-top:2px solid var(--navy);font-weight:700;"><td colspan="2" style="text-align:right;">GPA</td><td><b>'+data.gpa+'</b></td></tr>';
 html+='</table>';
 }else{
 html='<table class="result-table"><tr><th>Course</th><th>Code</th><th>Grade</th></tr>';
