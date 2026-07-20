@@ -257,7 +257,16 @@ router.post('/payments-bulk', authenticateToken, requireRole('finance'), async (
 
     if (saved === 0) return res.status(400).json({ error: 'All selected courses have already been paid' });
 
-    res.json({ message: `${saved} payment(s) saved`, receiptNo, studentId, studentName, totalAmount, courses: savedCourses });
+    // Fetch course names
+    const codes = savedCourses.map(c => c.course);
+    const courseNames = {};
+    if (codes.length > 0) {
+      const nameResult = await pool.query('SELECT course_code, course_name FROM courses WHERE course_code = ANY($1)', [codes]);
+      nameResult.rows.forEach(r => { courseNames[r.course_code] = r.course_name; });
+    }
+    savedCourses.forEach(c => { c.name = courseNames[c.course] || ''; });
+
+    res.json({ message: `${saved} payment(s) saved`, receiptNo, studentId, studentName, totalAmount, recordedBy: req.user.username, courses: savedCourses });
   } catch (err) {
     console.error('Bulk payment error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -279,8 +288,18 @@ router.get('/appeal-receipt/:studentId', authenticateToken, requireRole('finance
     const { studentId } = req.params;
     const studentResult = await pool.query('SELECT student_id, name, faculty FROM students WHERE student_id = $1', [studentId]);
     if (studentResult.rows.length === 0) return res.status(404).json({ error: 'Student not found' });
-    const paymentsResult = await pool.query("SELECT course, amount, receipt_no, TO_CHAR(date, 'YYYY-MM-DD HH24:MI:SS') as date FROM appeal_payments WHERE student_id = $1 ORDER BY date DESC", [studentId]);
+    const paymentsResult = await pool.query("SELECT p.course, p.amount, p.receipt_no, p.recorded_by, TO_CHAR(p.date, 'YYYY-MM-DD HH24:MI:SS') as date FROM appeal_payments p WHERE p.student_id = $1 ORDER BY p.date DESC", [studentId]);
     const totalResult = await pool.query('SELECT COALESCE(SUM(amount),0)::numeric as total FROM appeal_payments WHERE student_id = $1', [studentId]);
+
+    // Fetch course names
+    const codes = paymentsResult.rows.map(p => p.course);
+    let courseNames = {};
+    if (codes.length > 0) {
+      const nameResult = await pool.query('SELECT course_code, course_name FROM courses WHERE course_code = ANY($1)', [codes]);
+      nameResult.rows.forEach(r => { courseNames[r.course_code] = r.course_name; });
+    }
+    paymentsResult.rows.forEach(p => { p.name = courseNames[p.course] || ''; });
+
     res.json({
       student: studentResult.rows[0],
       payments: paymentsResult.rows,
