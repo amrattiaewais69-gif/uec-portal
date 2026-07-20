@@ -214,6 +214,50 @@ router.post('/payment', authenticateToken, requireRole('finance'), async (req, r
   }
 });
 
+// Bulk appeal payments — one receipt for multiple courses
+router.post('/payments-bulk', authenticateToken, requireRole('finance'), async (req, res) => {
+  try {
+    const settings = await pool.query("SELECT value FROM settings WHERE key = 'appeal_deadline'");
+    if (settings.rows.length > 0 && settings.rows[0].value) {
+      if (new Date() > new Date(settings.rows[0].value)) {
+        return res.status(403).json({ error: 'Appeal period has ended. No payments can be recorded.' });
+      }
+    }
+
+    const { studentId, payments } = req.body;
+    if (!studentId || !payments || !Array.isArray(payments) || payments.length === 0) {
+      return res.status(400).json({ error: 'Student ID and at least one payment required' });
+    }
+
+    const studentResult = await pool.query('SELECT name FROM students WHERE student_id = $1', [studentId]);
+    if (studentResult.rows.length === 0) return res.status(404).json({ error: 'Student not found' });
+    const studentName = studentResult.rows[0].name;
+
+    const receiptNo = await getNextReceiptNo();
+    let totalAmount = 0;
+    let saved = 0;
+    const savedCourses = [];
+
+    for (const p of payments) {
+      if (!p.course || !p.amount || p.amount <= 0) continue;
+      const existing = await pool.query('SELECT id FROM appeal_payments WHERE student_id = $1 AND course = $2', [studentId, p.course]);
+      if (existing.rows.length > 0) continue;
+
+      await pool.query('INSERT INTO appeal_payments (student_id, student_name, course, amount, recorded_by, receipt_no) VALUES ($1, $2, $3, $4, $5, $6)', [studentId, studentName, p.course, p.amount, req.user.username, receiptNo]);
+      totalAmount += p.amount;
+      saved++;
+      savedCourses.push({ course: p.course, amount: p.amount });
+    }
+
+    if (saved === 0) return res.status(400).json({ error: 'All selected courses have already been paid' });
+
+    res.json({ message: `${saved} payment(s) saved`, receiptNo, studentId, studentName, totalAmount, courses: savedCourses });
+  } catch (err) {
+    console.error('Bulk payment error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.get('/appeal-history', authenticateToken, requireRole('finance'), async (req, res) => {
   try {
     const result = await pool.query("SELECT student_id, student_name, course, amount, TO_CHAR(date, 'YYYY-MM-DD HH24:MI:SS') as date, receipt_no FROM appeal_payments ORDER BY date DESC");

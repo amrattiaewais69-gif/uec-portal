@@ -113,15 +113,16 @@
 <div style="flex:1;">
 <h3 id="appealStudentName" style="color:var(--navy);margin:0 0 5px;"></h3>
 <p id="appealStudentIdText" style="color:var(--gray);font-size:13px;margin:0;"></p>
+<p id="appealReceiptNo" style="color:var(--gold);font-size:13px;font-weight:700;margin:4px 0 0;display:none;"></p>
 </div>
 </div>
-<div style="margin-top:15px;">
-<label style="font-weight:700;font-size:13px;color:var(--navy);display:block;margin-bottom:5px;">Select Course</label>
-<select id="appealCourseSelect" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:'Lato',sans-serif;"></select>
-<div style="display:flex;gap:10px;margin-top:10px;align-items:center;">
-<input id="appealAmount" type="number" placeholder="Payment Amount" style="padding:10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;width:200px;">
-<button class="btn btn-gold btn-sm" onclick="saveAppealPayment()">Save Payment</button>
+<div id="appealCoursesList" style="margin-top:15px;"></div>
+<div id="appealTotalRow" style="margin-top:12px;padding:12px 15px;background:var(--off-white);border-radius:var(--radius);display:none;justify-content:space-between;align-items:center;">
+<span style="font-weight:700;color:var(--navy);font-size:14px;">Total</span>
+<span id="appealTotal" style="font-weight:700;color:var(--gold);font-size:18px;font-family:'Playfair Display',serif;"></span>
 </div>
+<div style="margin-top:12px;">
+<button class="btn btn-gold btn-sm" onclick="saveBulkAppealPayments()">Save Payment</button>
 </div>
 </div>
 
@@ -325,27 +326,69 @@ if(!res.ok){alert('Student not found');return;}const data=await res.json();
 if(data.appealClosed){document.getElementById('appealStudentInfo').style.display='block';document.getElementById('appealStudentInfo').innerHTML='<div style="text-align:center;padding:20px;"><p style="color:#dc2626;font-size:16px;font-weight:700;">&#128683; Appeal Period Closed</p><p style="color:#64748b;font-size:13px;">'+data.message+'</p></div>';return;}
 document.getElementById('appealStudentName').textContent=data.name;
 document.getElementById('appealStudentIdText').textContent='Student ID: '+data.id;
+document.getElementById('appealReceiptNo').style.display='none';
 const pb=document.getElementById('appealPhotoBox');
 const img=new Image();img.src='/photos/'+data.id+'.jpg';img.style.cssText='width:100%;height:100%;border-radius:50%;object-fit:cover;';
 img.onerror=function(){pb.style.backgroundImage='url("data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" rx="50" fill="#0a1f3c"/><text x="50" y="58" font-family="Arial" font-size="32" font-weight="bold" fill="#c5a358" text-anchor="middle">'+(data.name.split(' ').map(w=>w[0]).join('').substring(0,2))+'</text></svg>')+'")';};
 pb.innerHTML='';pb.appendChild(img);
 document.getElementById('appealStudentInfo').style.display='block';
-const sel=document.getElementById('appealCourseSelect');sel.innerHTML='';
+const list=document.getElementById('appealCoursesList');
 const entries=Object.entries(data.courses);
-if(entries.length===0){sel.innerHTML='<option>No final results for this year</option>';return;}
-entries.forEach(([code,info])=>{const o=document.createElement('option');o.value=code;o.textContent=info.label+' (Grade: '+info.grade+')';sel.appendChild(o);});
+if(entries.length===0){list.innerHTML='<p style="color:var(--gray);font-size:13px;text-align:center;padding:15px;">No final results for this year</p>';document.getElementById('appealTotalRow').style.display='none';return;}
+let html='<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:var(--off-white);"><th style="padding:8px;text-align:left;width:30px;"><input type="checkbox" id="selectAllAppeal" onchange="toggleAllAppeal(this)" style="cursor:pointer;"></th><th style="padding:8px;text-align:left;">Course</th><th style="padding:8px;text-align:center;">Grade</th><th style="padding:8px;text-align:right;width:140px;">Amount (EGP)</th></tr></thead><tbody id="appealCoursesBody">';
+entries.forEach(([code,info])=>{
+html+='<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;text-align:center;"><input type="checkbox" class="appeal-check" data-course="'+code+'" onchange="updateAppealTotal()" style="cursor:pointer;"></td><td style="padding:8px;">'+info.label+'</td><td style="padding:8px;text-align:center;font-weight:700;">'+info.grade+'</td><td style="padding:8px;text-align:right;"><input type="number" class="appeal-amount" data-course="'+code+'" value="3500" min="0" style="width:120px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;text-align:right;"></td></tr>';
+});
+html+='</tbody></table>';
+list.innerHTML=html;
+updateAppealTotal();
 }catch(e){alert('Error loading student');}
 }
 
-async function saveAppealPayment(){
+function toggleAllAppeal(cb){document.querySelectorAll('.appeal-check').forEach(c=>{c.checked=cb.checked;});updateAppealTotal();}
+
+function updateAppealTotal(){
+let total=0;
+document.querySelectorAll('.appeal-check:checked').forEach(cb=>{
+const amt=Number(cb.closest('tr').querySelector('.appeal-amount').value)||0;
+total+=amt;
+});
+const row=document.getElementById('appealTotalRow');
+const anyChecked=document.querySelectorAll('.appeal-check:checked').length>0;
+row.style.display=anyChecked?'flex':'none';
+document.getElementById('appealTotal').textContent=total.toLocaleString()+' EGP';
+}
+
+async function saveBulkAppealPayments(){
 const id=document.getElementById('appealStudentId').value.trim();
-const course=document.getElementById('appealCourseSelect').value;
-const amount=Number(document.getElementById('appealAmount').value);
-if(!id||!course||!amount){alert('Fill all fields');return;}
-try{const res=await fetch(API+'/finance/payment',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({studentId:id,course,amount})});
+const selected=[];
+document.querySelectorAll('.appeal-check:checked').forEach(cb=>{
+const course=cb.dataset.course;
+const amt=Number(cb.closest('tr').querySelector('.appeal-amount').value)||0;
+if(amt>0)selected.push({course,amount:amt});
+});
+if(!id||selected.length===0){alert('Select at least one course');return;}
+try{const res=await fetch(API+'/finance/payments-bulk',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({studentId:id,payments:selected})});
 const data=await res.json();
-if(res.ok){document.getElementById('appealAmount').value='';loadAppealStudent();loadAppealHistory();printAppealReceiptAll(id);}
-else{alert(data.error||'Failed');}}catch(e){alert('Error');}
+if(res.ok){
+document.getElementById('appealReceiptNo').textContent='Receipt No: '+data.receiptNo;
+document.getElementById('appealReceiptNo').style.display='block';
+loadAppealStudent();loadAppealHistory();
+printBulkAppealReceipt(data);
+}else{alert(data.error||'Failed');}}catch(e){alert('Error');}
+}
+
+function printBulkAppealReceipt(data){
+const stu={student_id:data.studentId,name:data.studentName};
+const payDate=new Date().toLocaleDateString('en-GB');
+let rowsHTML='';let totalAmount=0;
+data.courses.forEach(c=>{totalAmount+=c.amount;rowsHTML+='<tr><td>'+c.course+'</td><td style="text-align:center;">'+c.amount.toLocaleString()+'</td></tr>';});
+rowsHTML+='<tr><td style="font-weight:bold;border-top:2px solid #000;">TOTAL</td><td style="text-align:center;font-weight:bold;border-top:2px solid #000;">'+totalAmount.toLocaleString()+' EGP</td></tr>';
+const totalText=tafqeet(totalAmount);
+const receiptHTML=`<!DOCTYPE html><html lang="en" dir="ltr"><head><meta charset="UTF-8"><style>@page{size:A5 landscape;margin:0}body{margin:0;padding:8mm 10mm;width:210mm;height:148mm;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;background:white}.rc{border:2px solid #000;padding:6px;height:100%;box-sizing:border-box}.ri{border:1px solid #444;padding:10px 12px;height:100%;box-sizing:border-box}.rh{display:table;width:100%;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:8px}.rhc{display:table-cell;vertical-align:middle}.rbt{border:1px solid #000;padding:4px 10px;border-radius:4px;text-align:right;font-size:11px}.rt{text-align:center;font-size:17px;font-weight:bold;margin:8px 0;letter-spacing:1px}.rr{display:table;width:100%;margin-bottom:6px;font-size:12px;border-bottom:1px dashed #aaa;padding-bottom:3px}.rci{display:table-cell;vertical-align:top;padding:1px 0}.rab{border:2px solid #000;padding:5px 12px;font-weight:bold;font-size:16px;border-radius:4px;background:#fff;float:right}.actbl{width:100%;border-collapse:collapse;margin:6px 0;font-size:11px}.actbl th{background:#0a1f3c;color:#fff;padding:5px 8px;text-align:left;font-size:10px}.actbl td{padding:4px 8px;border-bottom:1px solid #ddd}</style></head><body><div class="rc"><div class="ri"><div class="rh"><div class="rhc" style="width:35%;text-align:left;"><div class="rbt"><div style="font-weight:bold;margin-bottom:2px;">Receipt: <span>${data.receiptNo}</span></div><div>Student ID: <span>${stu.student_id}</span></div><div>Printed: <span>${payDate}</span></div></div></div><div class="rhc" style="width:30%;text-align:center;"><img src="logo.png" style="height:55px;" /></div><div class="rhc" style="width:35%;text-align:right;"><div style="font-size:13px;font-weight:bold;">University of East Capital</div><div style="font-size:10px;">UEC — Appeal Payment Receipt</div></div></div><div class="rt">APPEAL PAYMENT RECEIPT</div><div class="rr"><div class="rci" style="width:65%;"><div><strong>Student Name:</strong> ${stu.name}</div><div><strong>Student ID:</strong> ${stu.student_id}</div><div><strong>Courses:</strong> ${data.courses.length}</div></div><div class="rci" style="width:35%;text-align:right;"><div class="rab">${totalAmount.toLocaleString()} EGP</div><div style="clear:both;"></div><div style="margin-top:8px;font-size:10px;">${totalText}</div></div></div><table class="actbl"><thead><tr><th>Course</th><th style="text-align:center;">Amount (EGP)</th></tr></thead><tbody>${rowsHTML}</tbody></table><div style="margin-top:auto;font-size:9px;color:#888;text-align:center;padding-top:8px;border-top:1px dashed #aaa;">This is a computer-generated receipt. — Designed by UEC ICT Department</div></div></div></body></html>`;
+const iframe=document.getElementById('printFrame');
+iframe.contentWindow.document.open();iframe.contentWindow.document.write(receiptHTML);iframe.contentWindow.document.close();
+setTimeout(()=>{iframe.contentWindow.focus();iframe.contentWindow.print();},300);
 }
 
 async function loadAppealHistory(){
