@@ -139,22 +139,28 @@ router.post('/processPayment', authenticateToken, requireRole('finance'), async 
   }
 });
 
-// Accountant: get student + record appeal payment
+// Accountant: get student final results + record appeal payment
 router.get('/student/:id', authenticateToken, requireRole('finance'), async (req, res) => {
   try {
     const { id } = req.params;
+    const year = req.query.year || new Date().getFullYear();
     const studentResult = await pool.query('SELECT student_id, name FROM students WHERE student_id = $1', [id]);
     if (studentResult.rows.length === 0) return res.status(404).json({ error: 'Student not found' });
 
     const coursesResult = await pool.query(`
-      SELECT r.course, r.grade FROM results r
+      SELECT r.course, r.final_grade FROM results r
       WHERE r.student_id = $1
-      AND NOT EXISTS (SELECT 1 FROM appeal_payments p WHERE p.student_id = $1 AND p.course = r.course)
+      AND r.result_type = 'final'
+      AND r.year = $2
+      AND NOT EXISTS (
+        SELECT 1 FROM appeal_payments p
+        WHERE p.student_id = $1 AND p.course = r.course
+      )
       ORDER BY r.course
-    `, [id]);
+    `, [id, year]);
 
     const courses = {};
-    coursesResult.rows.forEach(row => { courses[row.course] = row.grade; });
+    coursesResult.rows.forEach(row => { courses[row.course] = row.final_grade || row.grade || '-'; });
     res.json({ id: studentResult.rows[0].student_id, name: studentResult.rows[0].name, courses });
   } catch (err) {
     console.error('Get student error:', err);

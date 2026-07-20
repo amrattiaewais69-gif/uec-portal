@@ -366,6 +366,8 @@ const res=await fetch(API+'/student/results?type='+type,{headers:{'Authorization
 const data=await res.json();
 if(data.hidden){document.getElementById('resultContent').innerHTML='<div style="text-align:center;padding:30px;"><p style="font-size:16px;color:#999;">Results not yet published for your faculty.</p></div>';return;}
 currentResultData=data;
+const periods=data.periods||[];
+if(periods.length>0){const p=periods[0];const semLabel=(p.semester||'').charAt(0).toUpperCase()+(p.semester||'').slice(1);document.getElementById('resultTitle').textContent=titles[type]+' ('+semLabel+' '+(p.year||'')+') — '+currentStudent.name;}
 const rows=data.detailedResults||[];
 if(rows.length===0){document.getElementById('resultContent').innerHTML='<div style="text-align:center;padding:30px;"><p style="font-size:16px;color:#999;">No results available for '+titles[type]+' yet.</p></div>';return;}
 let html;
@@ -377,10 +379,11 @@ html+='<tr><td style="text-align:left;">'+r.courseName+'</td><td>'+r.course+'</t
 });
 html+='</table>';
 }else if(type==='final'){
-html='<table class="result-table"><tr><th>Course</th><th>Code</th><th>Midterm</th><th>CW</th><th>Final</th><th>Grade</th></tr>';
+html='<table class="result-table"><tr><th>Course</th><th>Code</th><th>Final</th></tr>';
 rows.forEach(r=>{
-html+='<tr><td style="text-align:left;">'+r.courseName+'</td><td>'+r.course+'</td><td>'+(r.midterm_grade!=null?r.midterm_grade:'-')+'</td><td>'+(r.coursework!=null?r.coursework:'-')+'</td><td>'+(r.final_grade!=null?r.final_grade:'-')+'</td><td><b>'+(r.grade!=null?r.grade:'-')+'</b></td></tr>';
+html+='<tr><td style="text-align:left;">'+r.courseName+'</td><td>'+r.course+'</td><td><b>'+(r.final_grade!=null?r.final_grade:'-')+'</b></td></tr>';
 });
+html+='<tr style="border-top:2px solid var(--navy);font-weight:700;"><td colspan="2" style="text-align:right;">GPA</td><td><b>'+d.gpa+'</b></td></tr>';
 html+='</table>';
 }else{
 html='<table class="result-table"><tr><th>Course</th><th>Code</th><th>Grade</th></tr>';
@@ -401,7 +404,10 @@ if(!currentResultData)return;
 const{jsPDF}=window.jspdf;
 const doc=new jsPDF();
 const d=currentResultData;
-const typeLabels={midterm:'Midterm Result-Semester 2',final:'Final Result-Semester 2',summer:'Summer Result'};
+const periods=d.periods||[];
+const p=periods.length>0?periods[0]:null;
+const semLabel=p?(p.semester.charAt(0).toUpperCase()+p.semester.slice(1)+' '+p.year):'';
+const typeLabels={midterm:'Midterm Results'+(semLabel?' ('+semLabel+')':''),final:'Final Results'+(semLabel?' ('+semLabel+')':''),summer:'Summer Results'+(semLabel?' ('+semLabel+')':'')};
 try{
 const lr=await fetch('logo.png');const lb=await lr.blob();
 const lr2=new FileReader();
@@ -424,14 +430,14 @@ if(currentResultType==='midterm'){
 rows.forEach(r=>{body.push([r.course,r.grade!=null?r.grade:'-']);});body.push(['GPA',d.gpa]);
 doc.autoTable({startY:y+40,head:[['Course','Midterm Grade']],body,theme:'grid',headStyles:{fillColor:[10,31,60],textColor:255,halign:'center',fontStyle:'bold',fontSize:14},bodyStyles:{halign:'center',fontSize:12,cellPadding:3},alternateRowStyles:{fillColor:[245,247,250]},columnStyles:{0:{cellWidth:130},1:{cellWidth:40}}});
 }else if(currentResultType==='final'){
-rows.forEach(r=>{body.push([r.course,r.midterm_grade!=null?r.midterm_grade:'-',r.coursework!=null?r.coursework:'-',r.final_grade!=null?r.final_grade:'-',r.grade!=null?r.grade:'-']);});body.push(['GPA','','','',d.gpa]);
-doc.autoTable({startY:y+40,head:[['Course','Midterm','CW','Final','Grade']],body,theme:'grid',headStyles:{fillColor:[10,31,60],textColor:255,halign:'center',fontStyle:'bold',fontSize:12},bodyStyles:{halign:'center',fontSize:11,cellPadding:3},alternateRowStyles:{fillColor:[245,247,250]},columnStyles:{0:{cellWidth:80},1:{cellWidth:25},2:{cellWidth:25},3:{cellWidth:25},4:{cellWidth:25}}});
+rows.forEach(r=>{body.push([r.course,r.final_grade!=null?r.final_grade:'-']);});body.push(['GPA',d.gpa]);
+doc.autoTable({startY:y+40,head:[['Course','Final']],body,theme:'grid',headStyles:{fillColor:[10,31,60],textColor:255,halign:'center',fontStyle:'bold',fontSize:14},bodyStyles:{halign:'center',fontSize:12,cellPadding:3},alternateRowStyles:{fillColor:[245,247,250]},columnStyles:{0:{cellWidth:130},1:{cellWidth:40}}});
 }else{
 for(const[c,g]of Object.entries(d.courses)){body.push([c,g]);}body.push(['GPA',d.gpa]);
 doc.autoTable({startY:y+40,head:[['Course','Grade']],body,theme:'grid',headStyles:{fillColor:[10,31,60],textColor:255,halign:'center',fontStyle:'bold',fontSize:14},bodyStyles:{halign:'center',fontSize:12,cellPadding:3},alternateRowStyles:{fillColor:[245,247,250]},columnStyles:{0:{cellWidth:130},1:{cellWidth:40}}});
 }
 let lastY=doc.lastAutoTable.finalY+15;
-const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=100x100&data='+encodeURIComponent('https://portal.uec.edu.eg/verify?id='+d.id);
+const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=100x100&data='+encodeURIComponent('https://portal.uec.edu.eg/verify.html?id='+d.id);
 doc.addImage(qrUrl,'PNG',15,lastY,30,30);
 doc.setFontSize(9);doc.setTextColor(100);doc.text('Scan to verify result authenticity',30,lastY+35,{align:'center'});
 doc.setDrawColor(10,31,60);doc.line(130,lastY,195,lastY);

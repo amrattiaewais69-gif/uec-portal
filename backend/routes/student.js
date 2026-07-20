@@ -17,9 +17,10 @@ router.get('/results', authenticateToken, async (req, res) => {
 
     const studentFaculty = studentResult.rows[0].faculty;
 
-    // Enforce visibility check
+    // Enforce visibility check (handle "Faculty of X" matching "X")
     if (resultType) {
-      const visResult = await pool.query(`SELECT ${resultType}_visible FROM faculties WHERE name = $1`, [studentFaculty]);
+      const shortName = studentFaculty ? studentFaculty.replace(/^Faculty of\s*/i, '').trim() : '';
+      const visResult = await pool.query(`SELECT ${resultType}_visible FROM faculties WHERE name = $1 OR name = $2`, [studentFaculty, shortName]);
       if (visResult.rows.length === 0 || !visResult.rows[0][`${resultType}_visible`]) {
         return res.json({ id: studentId, name: studentResult.rows[0].name, faculty: studentFaculty, courses: {}, gpa: '0.00', resultType, hidden: true });
       }
@@ -101,7 +102,8 @@ router.get('/reg-status', authenticateToken, async (req, res) => {
     const faculty = studentResult.rows[0]?.faculty;
     if (!faculty) return res.json({ open: false });
 
-    const result = await pool.query('SELECT reg_open FROM faculties WHERE name = $1', [faculty]);
+    const shortName = faculty ? faculty.replace(/^Faculty of\s*/i, '').trim() : '';
+    const result = await pool.query('SELECT reg_open FROM faculties WHERE name = $1 OR name = $2', [faculty, shortName]);
     const open = result.rows.length > 0 ? result.rows[0].reg_open : false;
     res.json({ open, faculty });
   } catch (err) {

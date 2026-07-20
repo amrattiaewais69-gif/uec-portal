@@ -1,36 +1,96 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UEC Result Verification</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
-<div class="card" id="searchBox">
-<img src="logo.png" class="logo"><h2>🎓 UEC Result Verification</h2>
-<p>Enter Student ID to verify results</p>
-<input id="sid" placeholder="Student ID">
-<button onclick="verify()">Verify</button>
-<p id="error" style="color:red;margin-top:10px;display:none;"></p>
+<body style="background:linear-gradient(135deg,var(--navy) 0%,var(--navy-light) 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;">
+
+<!-- Search Box -->
+<div class="login-box" id="searchBox">
+  <img src="logo.png" style="width:80px;margin-bottom:15px;">
+  <h2>Result Verification</h2>
+  <p>Enter Student ID to verify their result</p>
+  <input id="sid" placeholder="Student ID" onkeydown="if(event.key==='Enter')verify()">
+  <button class="btn btn-gold" style="width:100%;margin-top:12px;" onclick="verify()">Verify</button>
+  <p id="error" style="color:#dc3545;margin-top:12px;font-size:13px;display:none;"></p>
 </div>
-<div class="card" id="resultBox" style="display:none">
-<h2 style="color:#27ae60;">✓ Verified Result</h2>
-<h3 id="name"></h3>
-<p id="sid2"></p>
-<table id="resultTable"><tr><th>Course</th><th>Grade</th></tr></table>
-<h3>GPA: <span id="gpa"></span></h3>
-<p style="margin-top:15px;font-size:13px;color:#555;">This result has been verified by UEC</p>
-<button onclick="back()">Verify Another</button>
+
+<!-- Result Box -->
+<div class="login-box" id="resultBox" style="display:none;width:480px;">
+  <img src="logo.png" style="width:70px;margin-bottom:12px;">
+  <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:15px;">
+    <span style="font-size:24px;color:#28a745;">&#10003;</span>
+    <h2 style="color:#28a745;margin:0;">Verified Result</h2>
+  </div>
+
+  <div style="background:var(--off-white);border-radius:8px;padding:15px 20px;margin-bottom:15px;border:1px solid var(--border);text-align:left;">
+    <p style="margin:0 0 4px;font-size:12px;color:var(--gray);text-transform:uppercase;letter-spacing:0.5px;font-weight:700;">Student Name</p>
+    <h3 id="name" style="color:var(--navy);font-family:'Playfair Display',serif;font-size:18px;margin:0 0 12px;"></h3>
+    <p style="margin:0 0 4px;font-size:12px;color:var(--gray);text-transform:uppercase;letter-spacing:0.5px;font-weight:700;">Student ID</p>
+    <p id="sid2" style="font-size:14px;font-weight:600;color:var(--navy);margin:0;"></p>
+  </div>
+
+  <table class="result-table" id="resultTable">
+    <tr><th>Course</th><th>Grade</th></tr>
+  </table>
+
+  <div style="margin-top:15px;padding:12px 20px;background:var(--navy);border-radius:8px;color:var(--white);display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-size:14px;font-weight:700;">GPA</span>
+    <span id="gpa" style="font-size:20px;font-weight:700;color:var(--gold);font-family:'Playfair Display',serif;"></span>
+  </div>
+
+  <p style="margin-top:18px;font-size:12px;color:var(--gray);">This result has been verified by University of East Capital</p>
+
+  <button class="btn btn-outline" style="width:100%;margin-top:15px;" onclick="back()">Verify Another Student</button>
 </div>
-<div class="footer">Designed by UEC ICT Department<br>© 2026 University of East Capital</div>
+
+<div style="position:fixed;bottom:0;left:0;right:0;text-align:center;padding:15px;color:rgba(255,255,255,0.5);font-size:11px;">
+  Designed by UEC ICT Department &mdash; &copy; 2026 University of East Capital
+</div>
+
 <script>
 const API=window.location.origin+'/api';
 const params=new URLSearchParams(window.location.search);
 if(params.get('id')){document.getElementById('sid').value=params.get('id');verify();}
-async function verify(){const id=document.getElementById('sid').value.trim();if(!id){alert('Enter Student ID');return;}const err=document.getElementById('error');err.style.display='none';try{const res=await fetch(API+'/verify/'+id);if(!res.ok){err.textContent='Student not found';err.style.display='block';return;}const data=await res.json();document.getElementById('searchBox').style.display='none';document.getElementById('resultBox').style.display='block';document.getElementById('name').textContent=data.name;document.getElementById('sid2').textContent='Student ID: '+data.id;document.getElementById('gpa').textContent=data.gpa;const t=document.getElementById('resultTable');t.innerHTML='<tr><th>Course</th><th>Grade</th></tr>';for(const[c,g]of Object.entries(data.courses)){const tr=document.createElement('tr');const td1=document.createElement('td');td1.textContent=c;const td2=document.createElement('td');td2.textContent=g;tr.appendChild(td1);tr.appendChild(td2);t.appendChild(tr);}}catch(e){err.textContent='Connection error';err.style.display='block';}}
-function back(){document.getElementById('searchBox').style.display='block';document.getElementById('resultBox').style.display='none';document.getElementById('sid').value='';}
+
+async function verify(){
+  const id=document.getElementById('sid').value.trim();
+  if(!id){alert('Enter Student ID');return;}
+  const err=document.getElementById('error');err.style.display='none';
+  const btn=document.querySelector('#searchBox .btn');
+  btn.textContent='Verifying...';btn.disabled=true;
+  try{
+    const res=await fetch(API+'/verify/'+id);
+    if(!res.ok){err.textContent='Student not found';err.style.display='block';btn.textContent='Verify';btn.disabled=false;return;}
+    const data=await res.json();
+    document.getElementById('searchBox').style.display='none';
+    document.getElementById('resultBox').style.display='block';
+    document.getElementById('name').textContent=data.name;
+    document.getElementById('sid2').textContent=data.id;
+    document.getElementById('gpa').textContent=data.gpa;
+    const t=document.getElementById('resultTable');
+    t.innerHTML='<tr><th>Course</th><th>Grade</th></tr>';
+    for(const[c,g]of Object.entries(data.courses)){
+      const tr=document.createElement('tr');
+      const td1=document.createElement('td');td1.textContent=c;
+      const td2=document.createElement('td');td2.textContent=g;td2.style.fontWeight='700';
+      tr.appendChild(td1);tr.appendChild(td2);t.appendChild(tr);
+    }
+  }catch(e){
+    err.textContent='Connection error';err.style.display='block';
+    btn.textContent='Verify';btn.disabled=false;
+  }
+}
+
+function back(){
+  document.getElementById('searchBox').style.display='block';
+  document.getElementById('resultBox').style.display='none';
+  document.getElementById('sid').value='';
+  document.getElementById('error').style.display='none';
+}
 </script>
 </body>
 </html>
