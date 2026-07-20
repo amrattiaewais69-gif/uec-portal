@@ -158,7 +158,7 @@
 <div class="reg-card">
 <h4>Billing & Credits</h4>
 <p><b>Status:</b> <span id="regStatus" style="font-weight:bold;color:var(--navy);">---</span></p>
-<p><b>Credits:</b> <span id="regCredits">0</span> / 3 Max CH</p>
+<p><b>Credits:</b> <span id="regCredits">0</span> / 10 Max CH</p>
 <p><b>Fees:</b> <span id="regFees">0</span> EGP</p>
 </div>
 </div>
@@ -328,7 +328,7 @@ function toggleCourse(cb){
 if(cb.checked){
 let ch=0;
 document.querySelectorAll('#regCourses input[type="checkbox"]:checked').forEach(b=>{ch+=parseInt(b.getAttribute('data-ch'));});
-if(ch>3){cb.checked=false;alert('Cannot register for more than 3 credit hours in summer registration.');return;}
+if(ch>10){cb.checked=false;alert('Cannot register for more than 10 credit hours.');return;}
 }
 evalMetrics();
 }
@@ -356,7 +356,7 @@ const checked=document.querySelectorAll('#regCourses input[type="checkbox"]:chec
 const courses=Array.from(checked).map(b=>b.value);
 if(courses.length===0){alert('Please select at least one course before submitting.');return;}
 let ch=0;checked.forEach(b=>{ch+=parseInt(b.getAttribute('data-ch'));});
-if(ch>3){alert('Cannot register for more than 3 credit hours in summer registration.');return;}
+if(ch>10){alert('Cannot register for more than 10 credit hours.');return;}
 if(!confirm('Once submitted, your course selection will be sent for academic approval and cannot be modified unless returned by your Academic Advisor.'))return;
 try{const res=await fetch(API+'/student/submitRegistration',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({courses})});const data=await res.json();if(res.ok){alert(data.message);fetchDashboard();}else{alert(data.error||'Failed');}}catch(e){alert('Error');}
 }
