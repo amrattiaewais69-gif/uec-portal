@@ -235,12 +235,14 @@ router.get('/appeal-courses', authenticateToken, async (req, res) => {
       }
     }
     const result = await pool.query(`
-      SELECT DISTINCT p.course FROM appeal_payments p
+      SELECT DISTINCT p.course, c.course_name FROM appeal_payments p
+      LEFT JOIN courses c ON p.course = c.course_code
       WHERE p.student_id = $1
       AND NOT EXISTS (SELECT 1 FROM appeals a WHERE a.student_id = $1 AND a.course = p.course AND a.status NOT IN ('Revised without change'))
       ORDER BY p.course
     `, [studentId]);
-    res.json({ status: 'open', courses: result.rows.map(r => r.course) });
+    const courses = result.rows.map(r => r.course_name ? r.course + ' - ' + r.course_name : r.course);
+    res.json({ status: 'open', courses });
   } catch (err) {
     console.error('Get appeal courses error:', err);
     res.status(500).json({ error: 'Server error' });
