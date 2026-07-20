@@ -76,7 +76,7 @@
 </div>
 <div class="menu-card" onclick="openRegistration()">
 <div class="icon">📚</div>
-<h4>Summer Registration</h4>
+<h4>Registration</h4>
 <p>Register for summer retake courses</p>
 </div>
 <div id="appealCard" class="menu-card" onclick="window.location='appeal.html'">
@@ -129,7 +129,7 @@
 <div class="modal-overlay" id="regModal">
 <div class="modal-box">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
-<h3 style="margin:0;border:none;padding:0;">📚 Summer Registration</h3>
+<h3 style="margin:0;border:none;padding:0;">📝 Registration Form</h3>
 <button class="modal-close" onclick="closeRegistration()">✕ Close</button>
 </div>
 <p id="regClosedMsg" style="text-align:center;display:none;color:#dc3545;font-weight:bold;">🔒 Registration is currently closed for your faculty. Please check back later.</p>
@@ -158,7 +158,7 @@
 <div class="reg-card">
 <h4>Billing & Credits</h4>
 <p><b>Status:</b> <span id="regStatus" style="font-weight:bold;color:var(--navy);">---</span></p>
-<p><b>Credits:</b> <span id="regCredits">0</span> / 10 Max CH</p>
+<p><b>Credits:</b> <span id="regCredits">0</span> / 3 Max CH</p>
 <p><b>Fees:</b> <span id="regFees">0</span> EGP</p>
 </div>
 </div>
@@ -166,7 +166,7 @@
 <h4 style="margin:0 0 5px;font-size:13px;">Advisor Feedback</h4>
 <p id="advisorFeedbackText" style="margin:0;"></p>
 </div>
-<h4 style="color:var(--navy);font-size:14px;margin:15px 0 10px;">Eligible Summer Retake Courses</h4>
+<h4 style="color:var(--navy);font-size:14px;margin:15px 0 10px;">Eligible Retake Courses</h4>
 <div id="regCourses"></div>
 <div style="text-align:right;margin-top:15px;">
 <button class="btn btn-gold btn-sm" id="regBtn" onclick="submitRegistration()" style="display:none;">Lock Layout & Final Submit</button>
@@ -307,15 +307,14 @@ return;
 }
 const isLocked=!['Draft','Returned for Modification'].includes(req.status);
 document.getElementById('regBtn').style.display=isLocked?'none':'inline-flex';
-let html='<table><tr><th>Select</th><th>Code</th><th>Course</th><th>Credits</th><th>Fee/CH</th><th>Total Fee</th><th>Available</th></tr>';
+let html='<table><tr><th>Select</th><th>Code</th><th>Course</th><th>Credits</th><th>Fee/CH</th><th>Total Fee</th></tr>';
 studentData.courses.forEach(c=>{
 const isChecked=selectedCourses.includes(c.courseCode);
 const disabled=isLocked||(!isChecked&&c.availableSeats<=0);
-html+='<tr><td><input type="checkbox" value="'+c.courseCode+'" '+(isChecked?'checked':'')+(disabled?' disabled':'')+' data-ch="'+c.creditHours+'" data-cost="'+c.feePerCredit+'" onchange="evalMetrics()"></td>';
+html+='<tr><td><input type="checkbox" value="'+c.courseCode+'" '+(isChecked?'checked':'')+(disabled?' disabled':'')+' data-ch="'+c.creditHours+'" data-cost="'+c.feePerCredit+'" onchange="toggleCourse(this)"></td>';
 html+='<td><b>'+c.courseCode+'</b></td><td>'+c.courseName+'</td>';
 html+='<td><span class="badge">'+c.creditHours+' CH</span></td>';
-html+='<td>'+c.feePerCredit+'</td><td>'+(c.feePerCredit*c.creditHours)+'</td>';
-html+='<td>'+c.availableSeats+'</td></tr>';
+html+='<td>'+c.feePerCredit+'</td><td>'+(c.feePerCredit*c.creditHours)+'</td></tr>';
 });
 html+='</table>';
 container.innerHTML=html;
@@ -324,6 +323,15 @@ evalMetrics();
 }
 
 function closeRegistration(){document.getElementById('regModal').classList.remove('active');}
+
+function toggleCourse(cb){
+if(cb.checked){
+let ch=0;
+document.querySelectorAll('#regCourses input[type="checkbox"]:checked').forEach(b=>{ch+=parseInt(b.getAttribute('data-ch'));});
+if(ch>3){cb.checked=false;alert('Cannot register for more than 3 credit hours in summer registration.');return;}
+}
+evalMetrics();
+}
 
 function evaluateTracker(status){
 document.querySelectorAll('.tracker-step').forEach(s=>s.className='tracker-step');
@@ -348,7 +356,7 @@ const checked=document.querySelectorAll('#regCourses input[type="checkbox"]:chec
 const courses=Array.from(checked).map(b=>b.value);
 if(courses.length===0){alert('Please select at least one course before submitting.');return;}
 let ch=0;checked.forEach(b=>{ch+=parseInt(b.getAttribute('data-ch'));});
-if(ch>10){alert('Cannot register for more than 10 credit hours.');return;}
+if(ch>3){alert('Cannot register for more than 3 credit hours in summer registration.');return;}
 if(!confirm('Once submitted, your course selection will be sent for academic approval and cannot be modified unless returned by your Academic Advisor.'))return;
 try{const res=await fetch(API+'/student/submitRegistration',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({courses})});const data=await res.json();if(res.ok){alert(data.message);fetchDashboard();}else{alert(data.error||'Failed');}}catch(e){alert('Error');}
 }
