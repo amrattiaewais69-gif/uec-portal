@@ -6,7 +6,7 @@ const router = express.Router();
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const studentResult = await pool.query('SELECT student_id, name FROM students WHERE student_id = $1', [id]);
+    const studentResult = await pool.query('SELECT student_id, name, gpa FROM students WHERE student_id = $1', [id]);
     if (studentResult.rows.length === 0) return res.status(404).json({ error: 'Student not found' });
 
     const coursesResult = await pool.query('SELECT course, grade FROM results WHERE student_id = $1 ORDER BY course', [id]);
