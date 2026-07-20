@@ -322,6 +322,7 @@ const id=document.getElementById('appealStudentId').value.trim();if(!id){alert('
 const year=document.getElementById('appealYear').value;
 try{const res=await fetch(API+'/finance/student/'+id+'?year='+year,{headers:{'Authorization':'Bearer '+token}});
 if(!res.ok){alert('Student not found');return;}const data=await res.json();
+if(data.appealClosed){document.getElementById('appealStudentInfo').style.display='block';document.getElementById('appealStudentInfo').innerHTML='<div style="text-align:center;padding:20px;"><p style="color:#dc2626;font-size:16px;font-weight:700;">&#128683; Appeal Period Closed</p><p style="color:#64748b;font-size:13px;">'+data.message+'</p></div>';return;}
 document.getElementById('appealStudentName').textContent=data.name;
 document.getElementById('appealStudentIdText').textContent='Student ID: '+data.id;
 const pb=document.getElementById('appealPhotoBox');
@@ -330,9 +331,9 @@ img.onerror=function(){pb.style.backgroundImage='url("data:image/svg+xml,'+encod
 pb.innerHTML='';pb.appendChild(img);
 document.getElementById('appealStudentInfo').style.display='block';
 const sel=document.getElementById('appealCourseSelect');sel.innerHTML='';
-const courses=Object.keys(data.courses);
-if(courses.length===0){sel.innerHTML='<option>No final results for this year</option>';return;}
-courses.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c+' (Grade: '+data.courses[c]+')';sel.appendChild(o);});
+const entries=Object.entries(data.courses);
+if(entries.length===0){sel.innerHTML='<option>No final results for this year</option>';return;}
+entries.forEach(([code,info])=>{const o=document.createElement('option');o.value=code;o.textContent=info.label+' (Grade: '+info.grade+')';sel.appendChild(o);});
 }catch(e){alert('Error loading student');}
 }
 

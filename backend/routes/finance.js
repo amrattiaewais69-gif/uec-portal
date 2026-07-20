@@ -144,11 +144,24 @@ router.get('/student/:id', authenticateToken, requireRole('finance'), async (req
   try {
     const { id } = req.params;
     const year = req.query.year || new Date().getFullYear();
+
+    // Check appeal deadline
+    const settings = await pool.query("SELECT value FROM settings WHERE key = 'appeal_deadline'");
+    let appealClosed = false;
+    if (settings.rows.length > 0 && settings.rows[0].value) {
+      if (new Date() > new Date(settings.rows[0].value)) appealClosed = true;
+    }
+
     const studentResult = await pool.query('SELECT student_id, name FROM students WHERE student_id = $1', [id]);
     if (studentResult.rows.length === 0) return res.status(404).json({ error: 'Student not found' });
 
+    if (appealClosed) {
+      return res.json({ id: studentResult.rows[0].student_id, name: studentResult.rows[0].name, courses: {}, appealClosed: true, message: 'Appeal period has ended. No payments can be recorded.' });
+    }
+
     const coursesResult = await pool.query(`
-      SELECT r.course, r.final_grade FROM results r
+      SELECT r.course, r.final_grade, c.course_name FROM results r
+      LEFT JOIN courses c ON r.course = c.course_code
       WHERE r.student_id = $1
       AND r.result_type = 'final'
       AND r.year = $2
@@ -160,7 +173,10 @@ router.get('/student/:id', authenticateToken, requireRole('finance'), async (req
     `, [id, year]);
 
     const courses = {};
-    coursesResult.rows.forEach(row => { courses[row.course] = row.final_grade || row.grade || '-'; });
+    coursesResult.rows.forEach(row => {
+      const label = row.course_name ? row.course + ' - ' + row.course_name : row.course;
+      courses[row.course] = { grade: row.final_grade || '-', label };
+    });
     res.json({ id: studentResult.rows[0].student_id, name: studentResult.rows[0].name, courses });
   } catch (err) {
     console.error('Get student error:', err);
@@ -170,6 +186,14 @@ router.get('/student/:id', authenticateToken, requireRole('finance'), async (req
 
 router.post('/payment', authenticateToken, requireRole('finance'), async (req, res) => {
   try {
+    // Check appeal deadline
+    const settings = await pool.query("SELECT value FROM settings WHERE key = 'appeal_deadline'");
+    if (settings.rows.length > 0 && settings.rows[0].value) {
+      if (new Date() > new Date(settings.rows[0].value)) {
+        return res.status(403).json({ error: 'Appeal period has ended. No payments can be recorded.' });
+      }
+    }
+
     const { studentId, course, amount } = req.body;
     if (!studentId || !course || !amount) return res.status(400).json({ error: 'Student ID, course, and amount required' });
     if (typeof amount !== 'number' || amount <= 0) return res.status(400).json({ error: 'Amount must be a positive number' });
