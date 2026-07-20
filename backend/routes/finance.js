@@ -152,8 +152,14 @@ router.get('/student/:id', authenticateToken, requireRole('finance'), async (req
       if (new Date() > new Date(settings.rows[0].value)) appealClosed = true;
     }
 
-    const studentResult = await pool.query('SELECT student_id, name FROM students WHERE student_id = $1', [id]);
+    const studentResult = await pool.query('SELECT student_id, name, faculty FROM students WHERE student_id = $1', [id]);
     if (studentResult.rows.length === 0) return res.status(404).json({ error: 'Student not found' });
+
+    // Get appeal fee from student's faculty
+    const studentFaculty = studentResult.rows[0].faculty || '';
+    const shortName = studentFaculty.replace(/^Faculty of\s*/i, '').trim();
+    const feeResult = await pool.query('SELECT appeal_fee FROM faculties WHERE name = $1 OR name = $2', [studentFaculty, shortName]);
+    const appealFee = feeResult.rows.length > 0 ? Number(feeResult.rows[0].appeal_fee) || 0 : 0;
 
     if (appealClosed) {
       return res.json({ id: studentResult.rows[0].student_id, name: studentResult.rows[0].name, courses: {}, appealClosed: true, message: 'Appeal period has ended. No payments can be recorded.' });
@@ -177,7 +183,7 @@ router.get('/student/:id', authenticateToken, requireRole('finance'), async (req
       const label = row.course_name ? row.course + ' - ' + row.course_name : row.course;
       courses[row.course] = { grade: row.final_grade || '-', label };
     });
-    res.json({ id: studentResult.rows[0].student_id, name: studentResult.rows[0].name, courses });
+    res.json({ id: studentResult.rows[0].student_id, name: studentResult.rows[0].name, courses, appealFee });
   } catch (err) {
     console.error('Get student error:', err);
     res.status(500).json({ error: 'Server error' });

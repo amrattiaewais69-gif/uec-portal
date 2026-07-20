@@ -309,7 +309,7 @@ details.course-details>summary{padding:14px 18px;cursor:pointer;font-weight:700;
 </div>
 <div style="overflow-x:auto;">
 <table id="facultiesTable">
-<thead><tr><th>Faculty</th><th>Registration</th><th>Midterm</th><th>Final</th><th>Summer</th><th>Mid% (of 100)</th><th>CW% (of 100)</th><th>Final% (of 100)</th><th>Action</th></tr></thead>
+<thead><tr><th>Faculty</th><th>Registration</th><th>Midterm</th><th>Final</th><th>Summer</th><th>Mid% (of 100)</th><th>CW% (of 100)</th><th>Final% (of 100)</th><th>Appeal Fee (EGP)</th><th>Action</th></tr></thead>
 <tbody></tbody>
 </table>
 </div>
@@ -883,6 +883,7 @@ tr.innerHTML='<td><strong>'+f.name+'</strong></td>'+
 '<td><input type="number" min="0" max="100" value="'+(f.midterm_weight||20)+'" id="mw_'+f.name+'" style="width:55px;padding:5px;text-align:center;border:1px solid #cbd5e1;border-radius:4px;font-size:13px;"></td>'+
 '<td><input type="number" min="0" max="100" value="'+(f.coursework_weight||40)+'" id="cw_'+f.name+'" style="width:55px;padding:5px;text-align:center;border:1px solid #cbd5e1;border-radius:4px;font-size:13px;"></td>'+
 '<td><input type="number" min="0" max="100" value="'+(f.final_weight||40)+'" id="fw_'+f.name+'" style="width:55px;padding:5px;text-align:center;border:1px solid #cbd5e1;border-radius:4px;font-size:13px;"></td>'+
+'<td><input type="number" min="0" value="'+(f.appeal_fee||0)+'" id="af_'+f.name+'" style="width:70px;padding:5px;text-align:center;border:1px solid #cbd5e1;border-radius:4px;font-size:13px;"></td>'+
 '<td><button class="btn btn-gold btn-sm" onclick="saveWeights(\''+f.name+'\')">Save</button> <button class="btn btn-outline btn-sm" onclick="editFaculty(\''+f.name+'\')">Edit</button> <button class="btn btn-danger btn-sm" onclick="deleteFaculty(\''+f.name+'\')">Delete</button></td>';
 tbody.appendChild(tr);
 });
@@ -904,11 +905,12 @@ async function saveWeights(name){
 const mw=parseInt(document.getElementById('mw_'+name).value)||0;
 const cw=parseInt(document.getElementById('cw_'+name).value)||0;
 const fw=parseInt(document.getElementById('fw_'+name).value)||0;
+const af=parseFloat(document.getElementById('af_'+name).value)||0;
 if(mw+cw+fw!==100){alert('Weights must sum to 100! Current sum: '+(mw+cw+fw));return;}
 try{
-const res=await fetch(API+'/admin/faculties/'+encodeURIComponent(name)+'/weights',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({midterm_weight:mw, coursework_weight:cw, final_weight:fw})});
+const res=await fetch(API+'/admin/faculties/'+encodeURIComponent(name)+'/weights',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({midterm_weight:mw, coursework_weight:cw, final_weight:fw, appeal_fee:af})});
 const data=await res.json();
-if(data.success){alert('Weights saved for '+name+': Mid='+mw+'%, CW='+cw+'%, Final='+fw+'%');}else{alert(data.error||'Failed');}
+if(data.success){alert('Saved for '+name+': Mid='+mw+'%, CW='+cw+'%, Final='+fw+'%, Appeal Fee='+af+' EGP');}else{alert(data.error||'Failed');}
 }catch(e){alert('Error saving weights');}
 }
 async function addFaculty(){
